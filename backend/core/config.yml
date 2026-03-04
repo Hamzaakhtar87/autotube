@@ -1,0 +1,71 @@
+# Autotube Configuration
+# Single source of truth for all system settings
+
+system:
+  test_mode: false
+  ram_min_gb: 2
+  load_timeout_sec: 30
+  log_level: "INFO"
+
+model:
+  name: "Gemini Flash"
+  engine: "gemini"
+  max_context: 4096
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 40
+
+visuals:
+  priority_order: ["pexels", "public_api", "ai_fallback"]
+  use_api_visuals: true
+  pexels:
+    video_url: "https://api.pexels.com/videos/search"
+    image_url: "https://api.pexels.com/v1/search"
+    orientation: "portrait"
+    per_page: 5
+
+video:
+  width: 1080
+  height: 1920
+  fps: 30
+  duration:
+    min: 40
+    max: 60
+  bitrate: "5M"
+  audio_bitrate: "192k"
+  preset: "ultrafast"
+  crf: 24
+  background_video_url: "https://example.com/background.mp4"
+
+voice:
+  name: "en-US-GuyNeural"
+  rate: "+0%"
+  pitch: "+0Hz"
+
+upload:
+  privacy: "public"
+  videos_per_batch: 7
+  hour: 14
+  minute: 0
+
+content:
+  categories:
+    - "psychology facts"
+    - "human behavior"
+    - "social dynamics"
+    - "life lessons"
+    - "success mindset"
+    - "relationship psychology"
+    - "money psychology"
+    - "productivity tips"
+    - "self improvement"
+    - "uncomfortable truths"
+  max_topics_memory: 200
+  validate_topics: true
+  use_api_topics: false
+
+trend_sources:
+  google_trends_rss: "https://trends.google.com/trending/rss?geo=US"
+  reddit_subreddits:
+    - "psychology"
+    - "LifeProTips"

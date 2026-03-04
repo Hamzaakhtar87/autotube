@@ -1,0 +1,61 @@
+# ─── Dependencies ───
+node_modules/
+venv/
+backend/venv/
+.venv/
+
+# ─── Environment & Secrets ───
+.env
+.env.local
+.env.production
+backend/core/.env
+backend/core/local.env
+backend/core/client_secrets.json
+backend/core/credentials.json
+
+# ─── Generated Output (videos, temp assets) ───
+output/
+temp/
+backend/core/output/
+backend/core/output_v2/
+backend/core/temp/
+backend/core/temp_v2/
+
+# ─── Logs ───
+*.log
+backend/worker.log
+backend/core/agent.log
+backend/core/autotube.log
+
+# ─── Python Cache ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+*.egg-info/
+
+# ─── Topic Memory (runtime data) ───
+backend/core/memory.json
+
+# ─── Next.js ───
+frontend/.next/
+frontend/out/
+
+# ─── OS Files ───
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ─── IDE ───
+.vscode/
+.idea/
+*.code-workspace
+
+# ─── Docker ───
+*.tar
+
+# ─── Agent/AI Config (project-local only) ───
+.agent/
