@@ -1,356 +1,177 @@
-# 🤖 Autonomous YouTube Shorts Agent
+# AutoTube
 
-A fully automated, self-sustaining system that generates and uploads YouTube Shorts with **zero human interaction** after deployment.
+AI-powered video generation and publishing platform. Give it a topic and niche, it handles everything from scriptwriting to uploading the finished video to YouTube.
 
-## 🎯 What It Does
+Built with Next.js, FastAPI, Celery, and Google Gemini AI.
 
-The agent runs **indefinitely** and performs the following every 24 hours:
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green)
+![Docker](https://img.shields.io/badge/Docker-Compose-blue)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
-1. **Discovers trending topics** from Google Trends & Reddit
-2. **Generates viral scripts** using AI (dark psychology, uncomfortable truths)
-3. **Creates neural voiceovers** using Edge TTS
-4. **Builds 9:16 vertical videos** with burned-in subtitles
-5. **Generates optimized metadata** (titles, descriptions, tags)
-6. **Uploads to YouTube** as private/scheduled Shorts
-7. **Repeats forever** without any human input
+## How it works
 
-## 🏗️ Architecture
+1. **Trend discovery** - The agent scans Google Trends and Reddit for viral topics in your chosen niche
+2. **Script generation** - Gemini AI writes a natural, human-sounding script with scene breakdowns
+3. **Voice synthesis** - Edge TTS creates a neural voiceover from the script
+4. **Video assembly** - FFmpeg composites stock footage, voiceover, and karaoke-style subtitles into a finished video
+5. **Publishing** - Uploads directly to your YouTube channel, or schedules it for later
+
+The whole pipeline runs as a background Celery task, so you can queue up multiple videos and let it work.
+
+## Features
+
+**Video formats**
+- 9:16 vertical shorts (40-60 seconds) for YouTube Shorts, TikTok, Reels
+- 16:9 horizontal videos (3-5 minutes) for standard YouTube
+
+**Creative control**
+- Pick from preset niches or type your own custom topic
+- Choose your channel style: narration, what-if, explainer, listicle, documentary
+- Set the tone: serious, casual, dramatic, educational, humorous
+- Select from multiple AI narrator voices
+- Background music with volume control
+
+**Publishing options**
+- Generate Only: create the video and download it, no upload
+- Auto Publish: generate and upload to YouTube immediately
+- Schedule: generate and schedule for a specific date and time
+
+**LLM fallback chain**
+- Primary: Gemini 2.5 Flash
+- Fallback: Gemini 2.0 Flash
+- Last resort: Groq (Llama 3.3 70B)
+
+Smart rate limiting keeps you within free tier quotas.
+
+## Tech stack
+
+| Layer | Tech |
+|-------|------|
+| Frontend | Next.js 14, React, Tailwind CSS, shadcn/ui |
+| Backend API | FastAPI, SQLAlchemy, Alembic |
+| Task queue | Celery + Redis |
+| Database | PostgreSQL |
+| AI | Google Gemini API, Groq API |
+| Video | FFmpeg, Edge TTS, Pexels API |
+| Auth | JWT + OAuth2 (YouTube) |
+| Deployment | Docker Compose |
+
+## Project structure
 
 ```
-/agent
-├── main.py              # Autonomous orchestrator
-├── trend_agent.py       # Topic discovery
-├── script_agent.py      # AI script generation
-├── voice_agent.py       # Text-to-speech
-├── video_agent.py       # FFmpeg video builder
-├── metadata_agent.py    # SEO optimization
-├── youtube_agent.py     # YouTube API uploader
-├── memory.json          # Prevents topic repetition
-├── config.py            # Configuration
-├── requirements.txt     # Dependencies
-└── README.md           # This file
+autotube/
+├── docker-compose.yml
+├── backend/
+│   ├── app/                  # FastAPI application
+│   │   ├── api/              # REST endpoints
+│   │   ├── models/           # Database models
+│   │   ├── services/         # Auth, YouTube service
+│   │   └── worker.py         # Celery task runner
+│   ├── core/                 # Video generation engine
+│   │   ├── main.py           # Batch agent orchestrator
+│   │   ├── trend_agent.py    # Topic discovery
+│   │   ├── script_agent.py   # AI script generation
+│   │   ├── voice_agent.py    # TTS voiceover
+│   │   ├── video_agent.py    # FFmpeg video assembly
+│   │   ├── visual_engine.py  # Visual provider cascade
+│   │   ├── metadata_agent.py # Title, tags, description
+│   │   ├── youtube_agent.py  # YouTube upload + scheduling
+│   │   ├── model_manager.py  # LLM provider with fallbacks
+│   │   └── providers/        # Pexels, GeminiGen, Coverr, etc.
+│   └── requirements.txt
+└── frontend/
+    ├── app/                  # Next.js pages
+    ├── components/           # UI components
+    └── lib/                  # API client
 ```
 
-## 📋 Prerequisites
+## Setup
 
-### 1. System Requirements
-- Python 3.8+
-- FFmpeg installed and in PATH
-- Linux/Mac (Windows works with WSL)
+### Prerequisites
 
-### 2. API Keys Required
+- Docker and Docker Compose
+- Google Gemini API key ([get one here](https://aistudio.google.com/))
+- Pexels API key ([free, get one here](https://www.pexels.com/api/))
 
-#### YouTube Data API v3
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project
-3. Enable **YouTube Data API v3**
-4. Create OAuth 2.0 credentials (Desktop app)
-5. Download `client_secrets.json` and place in `/agent` folder
-
-#### Anthropic API
-1. Get API key from [Anthropic Console](https://console.anthropic.com/)
-2. Set environment variable:
-   ```bash
-   export ANTHROPIC_API_KEY="your-api-key-here"
-   ```
-
-## 🚀 Installation
+### 1. Clone and configure
 
 ```bash
-# Clone or create the directory
-mkdir agent && cd agent
+git clone https://github.com/Hamzaakhtar87/autotube.git
+cd autotube
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Verify FFmpeg is installed
-ffmpeg -version
-
-# Set API keys
-export ANTHROPIC_API_KEY="sk-ant-..."
-export YOUTUBE_API_KEY="your-youtube-api-key"  # Optional
+# Create your environment file
+cp .env.example .env
+# Edit .env and add your API keys
 ```
 
-## ⚙️ Configuration
-
-Edit `config.py` to customize:
-
-```python
-# Video settings
-VIDEO_WIDTH = 1080
-VIDEO_HEIGHT = 1920
-VIDEO_FPS = 30
-
-# Voice settings
-VOICE_NAME = "en-US-ChristopherNeural"  # Change voice
-VOICE_RATE = "+5%"  # Speed adjustment
-
-# Scheduling
-UPLOAD_HOUR = 14  # Upload time (2 PM)
-LOOP_INTERVAL_HOURS = 24  # Generate every 24 hours
-
-# Content categories
-TOPIC_CATEGORIES = [
-    "psychology",
-    "dark psychology",
-    "money psychology",
-    "uncomfortable truths"
-]
-```
-
-## 🎬 Usage
-
-### First-Time Setup (Authentication)
+### 2. Start everything
 
 ```bash
-# Run once to authenticate with YouTube
-python main.py --once
+docker compose up -d
 ```
 
-This will:
-1. Open browser for Google OAuth
-2. Grant YouTube upload permissions
-3. Save credentials to `credentials.json`
-4. Generate and upload one test Short
+This starts 5 containers:
+- **frontend** on `localhost:3000`
+- **backend** on `localhost:8000`
+- **worker** (Celery)
+- **redis**
+- **postgres**
 
-### Run Autonomously Forever
+### 3. Create an account
+
+Open `http://localhost:3000`, register a new account, and you're ready to generate videos.
+
+### 4. Connect YouTube (optional)
+
+Go to Settings > Connect YouTube to enable direct uploading. You'll need to set up OAuth credentials in Google Cloud Console first.
+
+## Environment variables
 
 ```bash
-# Start the autonomous agent
-python main.py
+# Required
+GEMINI_API_KEY=your_key_here
+
+# Optional but recommended
+GROQ_API_KEY=your_groq_key        # Fallback LLM
+PEXELS_API_KEY=your_pexels_key    # Stock footage
+GEMINIGEN_API_KEY=your_key        # AI-generated visuals
+
+# Infrastructure (defaults work with Docker Compose)
+DATABASE_URL=postgresql://autotube:autotube@db:5432/autotube
+CELERY_BROKER_URL=redis://redis:6379/0
+SECRET_KEY=your_secret_key
 ```
 
-The agent will:
-- Generate 1 Short immediately
-- Upload it as **private** (safe for review)
-- Schedule it for next day at 2 PM
-- Repeat every 24 hours **forever**
+## Development
 
-### Background Execution (Production)
+To run the frontend in dev mode with hot reload:
 
 ```bash
-# Run as background process
-nohup python main.py > agent.log 2>&1 &
-
-# Or use systemd (recommended)
-sudo nano /etc/systemd/system/youtube-agent.service
+cd frontend
+npm install
+npm run dev
 ```
 
-Example systemd service:
+Backend changes require a Docker rebuild:
 
-```ini
-[Unit]
-Description=YouTube Shorts Agent
-After=network.target
-
-[Service]
-Type=simple
-User=youruser
-WorkingDirectory=/path/to/agent
-Environment="ANTHROPIC_API_KEY=sk-ant-..."
-ExecStart=/usr/bin/python3 /path/to/agent/main.py
-Restart=always
-RestartSec=60
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
 ```bash
-sudo systemctl enable youtube-agent
-sudo systemctl start youtube-agent
-sudo systemctl status youtube-agent
+docker compose up -d --build backend worker
 ```
 
-## 📊 Monitoring
+## API docs
 
-### View Logs
-```bash
-# Real-time logs
-tail -f agent.log
+Once the backend is running, interactive docs are at `http://localhost:8000/docs`.
 
-# Or check systemd logs
-journalctl -u youtube-agent -f
-```
+Key endpoints:
+- `POST /auth/register` - Create account
+- `POST /auth/login` - Get JWT token
+- `POST /jobs` - Start video generation
+- `GET /jobs/{id}` - Check job status + logs
+- `GET /config/preferences` - User preferences
+- `GET /stats/dashboard` - Analytics
 
-### Check Memory
-```bash
-# View used topics
-cat memory.json
-```
+## License
 
-### Verify Uploads
-```bash
-# Check output directory
-ls -lh output/
-```
-
-## 🔒 Safety Features
-
-### Account Protection
-- Videos upload as **PRIVATE** by default
-- Never edits after upload (YouTube TOS compliant)
-- Max 1 upload per day (quota-safe)
-- Uses official YouTube Data API (no scraping)
-
-### Content Safety
-- Avoids repetition via `memory.json`
-- Keeps last 100 topics in memory
-- Filters for appropriate content
-- No browser automation (TOS compliant)
-
-### Error Handling
-- Auto-retries on failure
-- Logs all errors
-- Continues on single failure
-- Never crashes the loop
-
-## 🛠️ Troubleshooting
-
-### "FFmpeg not found"
-```bash
-# Ubuntu/Debian
-sudo apt install ffmpeg
-
-# Mac
-brew install ffmpeg
-
-# Verify
-ffmpeg -version
-```
-
-### "YouTube API quota exceeded"
-- Default quota: 10,000 units/day
-- One upload costs ~1,600 units
-- Max ~6 uploads/day
-- This agent uploads 1/day (safe)
-
-### "Authentication failed"
-```bash
-# Delete old credentials and re-authenticate
-rm credentials.json
-python main.py --once
-```
-
-### "No topics found"
-- Check internet connection
-- Verify Google Trends/Reddit are accessible
-- Agent will generate synthetic topics as fallback
-
-## 📈 Expected Results
-
-### Timeline
-- **Day 1-7**: Build foundation (7 Shorts)
-- **Week 2-4**: Algorithm recognition
-- **Month 2-3**: First viral Short likely
-- **Month 6+**: Consistent growth
-
-### Growth Factors
-- Consistency (daily uploads)
-- Topic quality (trending + evergreen)
-- Hook effectiveness (first 3 seconds)
-- Subtitle readability
-- Upload timing (2 PM optimal)
-
-## 🎨 Customization
-
-### Change Voice
-```python
-# In config.py
-VOICE_NAME = "en-GB-SoniaNeural"  # British female
-VOICE_NAME = "en-US-GuyNeural"    # American male
-```
-
-[Full voice list](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support?tabs=tts)
-
-### Change Background
-Replace the background video URL in `config.py`:
-```python
-BACKGROUND_VIDEO_URL = "https://your-stock-video-url.mp4"
-```
-
-Or use custom gradient colors in `video_agent.py`.
-
-### Change Content Niche
-```python
-# In config.py
-TOPIC_CATEGORIES = [
-    "fitness myths",
-    "productivity hacks",
-    "money mindset",
-    "stoicism"
-]
-```
-
-## 📝 Folder Structure
-
-```
-agent/
-├── main.py                 # Main orchestrator
-├── trend_agent.py          # Topic discovery
-├── script_agent.py         # Script generation
-├── voice_agent.py          # TTS conversion
-├── video_agent.py          # Video creation
-├── metadata_agent.py       # SEO metadata
-├── youtube_agent.py        # Upload handler
-├── config.py               # Settings
-├── requirements.txt        # Dependencies
-├── memory.json            # Used topics (auto-created)
-├── credentials.json       # YouTube auth (auto-created)
-├── client_secrets.json    # OAuth credentials (you provide)
-├── agent.log              # Logs (auto-created)
-├── output/                # Final videos
-│   └── short_*.mp4
-└── temp/                  # Temporary files
-    ├── audio_*.mp3
-    ├── subtitles.srt
-    └── background.mp4
-```
-
-## ⚖️ Legal & Ethics
-
-### YouTube TOS Compliance
-✅ Uses official API  
-✅ No automation/bots  
-✅ No spam or manipulation  
-✅ Original content only  
-✅ Proper rate limiting  
-
-### Content Guidelines
-- Generates factual psychological content
-- No misinformation or harmful advice
-- Educational/entertainment purpose
-- Complies with YouTube Community Guidelines
-
-### Responsibility
-- Review first few uploads manually
-- Monitor for any issues
-- Ensure content aligns with your brand
-- Use ethically and responsibly
-
-## 🤝 Contributing
-
-This is a production-ready autonomous system. Improvements welcome:
-- Additional trend sources
-- Better video templates
-- Advanced scheduling logic
-- Analytics integration
-
-## 📄 License
-
-MIT License - Use freely, modify as needed.
-
-## 🆘 Support
-
-For issues:
-1. Check logs: `tail -f agent.log`
-2. Verify API keys are set
-3. Ensure FFmpeg is installed
-4. Test with `--once` flag first
-
----
-
-**Built for creators who want to scale content production autonomously.**
-
-*Let the agent run. Let the growth compound. Focus on what matters.*
+MIT
