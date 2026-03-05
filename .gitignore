@@ -8,6 +8,7 @@ backend/venv/
 .env
 .env.local
 .env.production
+credentials_and_guide.md
 backend/core/.env
 backend/core/local.env
 backend/core/client_secrets.json
