@@ -23,6 +23,9 @@ from app.services.auth_service import (
     revoke_all_user_tokens,
     get_current_user,
     get_tier_limit,
+    get_user_by_email,
+    verify_password,
+    get_password_hash,
 )
 
 
@@ -259,6 +262,113 @@ def update_profile(
         videos_limit=get_tier_limit(current_user.subscription_tier),
         created_at=current_user.created_at
     )
+
+
+# ============================================================================
+# PASSWORD MANAGEMENT
+# ============================================================================
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+
+import secrets as _secrets
+import time as _time
+from threading import Lock as _Lock
+
+# In-memory password reset tokens (production would use Redis or DB)
+_reset_tokens: dict = {}
+_reset_lock = _Lock()
+RESET_TOKEN_EXPIRY = 3600  # 1 hour
+
+
+@router.post("/change-password", response_model=MessageResponse)
+def change_password(
+    req: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Change password for the currently logged-in user."""
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    if not verify_password(req.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    current_user.password_hash = get_password_hash(req.new_password)
+    db.commit()
+
+    # Revoke all refresh tokens (force re-login everywhere)
+    revoke_all_user_tokens(db, current_user.id)
+
+    return MessageResponse(message="Password changed successfully. Please log in again.")
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+def forgot_password(
+    req: PasswordResetRequest,
+    db: Session = Depends(get_db)
+):
+    """Request a password reset token. In production, this would send an email."""
+    # Always return success to prevent email enumeration
+    user = get_user_by_email(db, req.email)
+    if user:
+        token = _secrets.token_urlsafe(32)
+        with _reset_lock:
+            # Clean expired tokens
+            now = _time.time()
+            _reset_tokens.update({
+                k: v for k, v in _reset_tokens.items()
+                if v["expires"] > now
+            })
+            _reset_tokens[token] = {
+                "user_id": user.id,
+                "expires": now + RESET_TOKEN_EXPIRY
+            }
+        # In production: send email with reset link
+        # For now: log it (visible in Docker logs)
+        import logging
+        logging.getLogger(__name__).info(f"Password reset token for {user.email}: {token}")
+
+    return MessageResponse(message="If an account with that email exists, a reset link has been sent.")
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+def reset_password(
+    req: PasswordResetConfirm,
+    db: Session = Depends(get_db)
+):
+    """Reset password using a valid reset token."""
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    with _reset_lock:
+        token_data = _reset_tokens.pop(req.token, None)
+
+    if not token_data or token_data["expires"] < _time.time():
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user = db.query(User).filter(User.id == token_data["user_id"]).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+
+    user.password_hash = get_password_hash(req.new_password)
+    db.commit()
+
+    # Revoke all sessions
+    revoke_all_user_tokens(db, user.id)
+
+    return MessageResponse(message="Password has been reset. You can now log in.")
 
 
 # ============================================================================

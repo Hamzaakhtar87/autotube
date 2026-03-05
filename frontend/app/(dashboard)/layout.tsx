@@ -3,8 +3,10 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import Cookies from "js-cookie"
+import { useQuery } from "@tanstack/react-query"
+import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, PlusCircle, Settings, LogOut, Youtube, LineChart, CreditCard } from "lucide-react"
+import { LayoutDashboard, PlusCircle, Settings, LogOut, Youtube, LineChart, CreditCard, ShieldAlert } from "lucide-react"
 
 export default function DashboardLayout({
     children,
@@ -13,6 +15,15 @@ export default function DashboardLayout({
 }) {
     const pathname = usePathname()
     const router = useRouter()
+
+    const { data: status } = useQuery({
+        queryKey: ["config_status"],
+        queryFn: async () => {
+            const res = await api.get("/config/status")
+            return res.data
+        },
+        retry: 0
+    })
 
     const logout = () => {
         Cookies.remove("access_token")
@@ -61,6 +72,11 @@ export default function DashboardLayout({
                             <NavLink href="/settings" icon={Settings}>
                                 Settings
                             </NavLink>
+                            {status?.is_admin && (
+                                <NavLink href="/admin" icon={ShieldAlert}>
+                                    Admin Panel
+                                </NavLink>
+                            )}
                         </nav>
                     </div>
                     <div className="mt-auto p-4 border-t">

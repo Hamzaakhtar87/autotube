@@ -11,8 +11,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { useTheme } from "next-themes"
 import {
     CheckCircle, Youtube, ShieldAlert,
-    User, Crown, Mail, Upload, Moon, Sun, Monitor
+    User, Crown, Mail, Upload, Moon, Sun, Monitor, Key, Lock
 } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 export default function SettingsPage() {
     const { toast } = useToast()
@@ -20,6 +21,10 @@ export default function SettingsPage() {
     const { theme, setTheme } = useTheme()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+
+    // Password change state
+    const [currentPassword, setCurrentPassword] = useState("")
+    const [newPassword, setNewPassword] = useState("")
 
     useEffect(() => {
         const saved = localStorage.getItem("user_avatar")
@@ -51,6 +56,20 @@ export default function SettingsPage() {
         mutationFn: (data: any) => api.post("/config/secrets", JSON.parse(data)),
         onSuccess: () => { toast({ title: "Configuration Updated" }); setSecretsJson(""); refetch() },
         onError: () => toast({ title: "Invalid Configuration", variant: "destructive" })
+    })
+
+    const passwordMutation = useMutation({
+        mutationFn: async () => api.post("/auth/change-password", { current_password: currentPassword, new_password: newPassword }),
+        onSuccess: () => {
+            toast({ title: "Password Updated", description: "Successfully changed password." })
+            setCurrentPassword("")
+            setNewPassword("")
+        },
+        onError: (err: any) => toast({
+            title: "Password Change Failed",
+            variant: "destructive",
+            description: err.response?.data?.detail || "An error occurred."
+        })
     })
 
     const handleConnect = async () => {
@@ -151,6 +170,40 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
                 )}
+
+                {/* ═══ PASSWORD CHANGE ═══ */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <Lock className="h-5 w-5 text-slate-500" /> Account Security
+                        </CardTitle>
+                        <CardDescription>Update your password to keep your account secure.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 max-w-sm">
+                        <div className="space-y-2">
+                            <Label>Current Password</Label>
+                            <Input
+                                type="password"
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>New Password</Label>
+                            <Input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                            />
+                        </div>
+                        <Button
+                            onClick={() => passwordMutation.mutate()}
+                            disabled={!currentPassword || newPassword.length < 8 || passwordMutation.isPending}
+                        >
+                            {passwordMutation.isPending ? "Updating..." : "Update Password"}
+                        </Button>
+                    </CardContent>
+                </Card>
 
                 {/* ═══ THEME SETTINGS ═══ */}
                 <Card>
