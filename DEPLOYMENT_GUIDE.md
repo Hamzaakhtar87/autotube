@@ -32,8 +32,8 @@ As a bootstrapped startup, we are deploying this powerful AI SaaS for exactly **
    - `DATABASE_URL` = (From Supabase)
    - `CELERY_BROKER_URL` = (From Upstash)
    - `CELERY_RESULT_BACKEND` = (From Upstash)
-   - `SECRET_KEY` = (Generate a random string)
-   - `GEMINIGEN_API_KEY`, etc.
+   - `SECRET_KEY`, `JWT_SECRET`, `JWT_REFRESH_SECRET` = (Copy these from your local `PRODUCTION_SECRETS.md` or `.env` file)
+   - `GEMINI_API_KEY`, etc.
 6. **Deploy!** Render will give you a URL like `https://autotube.onrender.com`.
 
 ### Step 3: Deploy the Worker (The Factory)
