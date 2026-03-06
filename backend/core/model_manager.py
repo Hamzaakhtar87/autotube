@@ -124,14 +124,20 @@ class ModelManager:
         max_retries = 1  # Only 1 retry to save quota
         for attempt in range(max_retries + 1):
             try:
+                # SECURE: Prevent API Exhaustion (Exploit 12)
+                # Hard limit the input prompt to prevent users from draining tokens
+                safe_prompt = prompt[:4000]  # Max 4000 characters input
+                
+                # google-genai client doesn't explicitly expose timeout in generate_content config directly, 
+                # but we can rely on max_output_tokens and prompt slicing.
                 response = self.gemini_client.models.generate_content(
                     model=model,
-                    contents=prompt,
+                    contents=safe_prompt,
                     config={
                         "temperature": 0.7,
                         "top_p": 0.9,
                         "top_k": 40,
-                        "max_output_tokens": 2048,
+                        "max_output_tokens": 800, # Hard cap output lengths to save budget
                     }
                 )
                 result = response.text.strip()
@@ -157,12 +163,18 @@ class ModelManager:
         max_retries = 2
         for attempt in range(max_retries + 1):
             try:
+                # SECURE: Limit API Exhaustion
+                safe_prompt = prompt[:4000]
+                
                 response = self.groq_client.chat.completions.create(
                     model=GROQ_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[
+                        {"role": "system", "content": "You are an expert AI scriptwriter. Follow instructions strictly."},
+                        {"role": "user", "content": safe_prompt}
+                    ],
                     temperature=0.7,
-                    max_tokens=2048,
-                    top_p=0.9,
+                    max_tokens=800, # Hard cap output tokens
+                    timeout=15.0 # Strict HTTP timeout
                 )
                 result = response.choices[0].message.content.strip()
                 if not result:

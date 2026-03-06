@@ -63,12 +63,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+from app.api import auth, jobs, stats, settings, videos
+
 # Note: auth.router has prefix="/auth" built-in
 app.include_router(auth.router, tags=["auth"])
 app.include_router(jobs.router, tags=["jobs"])
 app.include_router(stats.router, tags=["stats"])
 app.include_router(settings.router, tags=["settings"])
+app.include_router(videos.router)
 
 # Admin router
 from app.api import admin

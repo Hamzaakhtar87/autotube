@@ -10,7 +10,6 @@ from app.db import get_db
 from app.models.models import User, CompetitorChannel
 from app.services.auth_service import get_current_user
 from urllib.parse import urlparse
-from backend.core.providers.youtube_provider import YouTubeProvider  # Assumed available in core
 
 router = APIRouter(prefix="/competitors", tags=["competitor-analysis"])
 logger = logging.getLogger(__name__)

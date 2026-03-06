@@ -97,6 +97,20 @@ def create_job(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Monthly video limit reached ({tier_limit} videos). Upgrade your plan to generate more videos."
         )
+
+    # SECURE: Prevent Celery Queue Exhaustion (Exploit 10)
+    # Ensure users cannot spam the broker with thousands of background tasks
+    active_jobs = db.query(Job).filter(
+        Job.user_id == current_user.id,
+        Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING])
+    ).count()
+    
+    max_concurrent_jobs = 1 if current_user.subscription_tier == "free" else (3 if current_user.subscription_tier == "pro" else 10)
+    if active_jobs >= max_concurrent_jobs:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"You already have {active_jobs} active job(s) in the queue. Please wait for them to finish before submitting more."
+        )
     
     # Enforce video count limits based on tier
     max_videos_per_job = min(job_in.videos_count, 7)  # Cap at 7 per job
