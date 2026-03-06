@@ -82,6 +82,11 @@ app.include_router(billing.router, tags=["billing"])
 from app.api import webhooks
 app.include_router(webhooks.router)
 
+# Enterprise
+from app.api import workspaces, competitors
+app.include_router(workspaces.router)
+app.include_router(competitors.router)
+
 @app.get("/")
 def root():
     return {"status": "ok", "service": "autotube-backend"}

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.models.models import Job, JobLog, JobStatus, User
 import time
+from app.services.email_service import email_service
 
 # Add app and core to sys.path so imports work
 # Detect Docker vs local: worker.py is at backend/app/worker.py
@@ -110,9 +111,12 @@ def run_batch_task(self, job_id: int, test_mode: bool = False):
         user_tier = "free"
         youtube_creds = None
         user_preferences = {}
+        user_email = None
         
         if job.user_id:
             user = db.query(User).filter(User.id == job.user_id).first()
+            if user:
+                user_email = user.email
             if user and hasattr(user, 'subscription_tier'):
                 user_tier = user.subscription_tier or "free"
             
@@ -157,13 +161,19 @@ def run_batch_task(self, job_id: int, test_mode: bool = False):
         
         if success:
             job.status = JobStatus.COMPLETED
+            if user_email: email_service.send_job_completion(user_email, job_id, "completed")
             root_logger.info("✅ Job finished successfully")
         else:
             job.status = JobStatus.FAILED
+            if user_email: email_service.send_job_completion(user_email, job_id, "failed")
             root_logger.error("❌ Job reported failure")
 
     except Exception as e:
         job.status = JobStatus.FAILED
+        try:
+            if 'user_email' in locals() and user_email: 
+                email_service.send_job_completion(user_email, job_id, "failed")
+        except: pass
         root_logger.error(f"❌ critical error in worker: {str(e)}")
     finally:
         # Capture status before closing session (avoid DetachedInstanceError)

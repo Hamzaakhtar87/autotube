@@ -66,6 +66,24 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
+def create_verification_token(user_id: int) -> str:
+    """Create a secure email verification token."""
+    expire = datetime.utcnow() + timedelta(hours=24) # Valid for 24h
+    to_encode = {"sub": str(user_id), "type": "verify_email", "exp": expire}
+    return jwt.encode(to_encode, config.SECRET_KEY, algorithm=config.ALGORITHM)
+
+
+def decode_verification_token(token: str) -> Optional[int]:
+    """Decode a verification token to get the user ID."""
+    try:
+        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+        if payload.get("type") != "verify_email":
+            return None
+        return int(payload.get("sub"))
+    except Exception:
+        return None
+
+
 # ============================================================================
 # USER CRUD OPERATIONS
 # ============================================================================

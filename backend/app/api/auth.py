@@ -26,7 +26,10 @@ from app.services.auth_service import (
     get_user_by_email,
     verify_password,
     get_password_hash,
+    create_verification_token,
+    decode_verification_token,
 )
+from app.services.email_service import email_service
 
 
 router = APIRouter(prefix="/auth")
@@ -40,6 +43,14 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str
     full_name: Optional[str] = None
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 
 class UserLogin(BaseModel):
@@ -92,7 +103,9 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         full_name=user_in.full_name
     )
     
-    # TODO: Send verification email
+    # Send verification email
+    token = create_verification_token(user.id)
+    email_service.send_verification_email(user.email, token)
     
     return UserResponse(
         id=user.id,
@@ -369,6 +382,62 @@ def reset_password(
     revoke_all_user_tokens(db, user.id)
 
     return MessageResponse(message="Password has been reset. You can now log in.")
+
+
+# ============================================================================
+# EMAIL VERIFICATION
+# ============================================================================
+
+@router.post("/verify-email", response_model=MessageResponse)
+def verify_email(
+    request: VerifyEmailRequest,
+    db: Session = Depends(get_db)
+):
+    """Verify user's email address using a token."""
+    user_id = decode_verification_token(request.token)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
+        )
+    
+    from app.services.auth_service import get_user_by_id
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+        
+    if user.is_verified:
+        return MessageResponse(message="Email is already verified")
+        
+    user.is_verified = True
+    user.email_verified_at = datetime.utcnow()
+    db.commit()
+    
+    return MessageResponse(message="Email successfully verified")
+
+
+@router.post("/resend-verification", response_model=MessageResponse)
+def resend_verification(
+    request: ResendVerificationRequest,
+    db: Session = Depends(get_db)
+):
+    """Resend the verification email to the user."""
+    user = get_user_by_email(db, request.email)
+    if not user:
+        # Silently succeed to prevent email enumeration
+        return MessageResponse(message="If the email exists, a verification link has been sent.")
+        
+    if user.is_verified:
+        return MessageResponse(message="Email is already verified.")
+        
+    # Send verification email
+    token = create_verification_token(user.id)
+    email_service.send_verification_email(user.email, token)
+    
+    return MessageResponse(message="If the email exists, a verification link has been sent.")
 
 
 # ============================================================================

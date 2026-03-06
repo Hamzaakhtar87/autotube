@@ -19,6 +19,16 @@ class JobStatus(str, enum.Enum):
     RETRYING = "retrying"
 
 
+class Workspace(Base):
+    __tablename__ = "workspaces"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    owner = relationship("User", foreign_keys=[owner_id])
+    members = relationship("User", back_populates="workspace", foreign_keys="User.workspace_id")
+
 class User(Base):
     __tablename__ = "users"
     
@@ -48,6 +58,9 @@ class User(Base):
     # Admin flag
     is_admin = Column(Boolean, default=False)
     
+    # Workspace/Tenant
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", use_alter=True, name="fk_user_workspace"), nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -56,6 +69,7 @@ class User(Base):
     jobs = relationship("Job", back_populates="user", cascade="all, delete-orphan")
     youtube_accounts = relationship("YouTubeAccount", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    workspace = relationship("Workspace", back_populates="members", foreign_keys=[workspace_id])
 
 
 class RefreshToken(Base):
@@ -167,3 +181,23 @@ class VideoStats(Base):
     
     video = relationship("Video", back_populates="stats")
 
+
+class CompetitorChannel(Base):
+    """Tracking competitor metrics"""
+    __tablename__ = "competitor_channels"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    channel_url = Column(String, nullable=False)
+    custom_name = Column(String, nullable=True)
+    
+    # Snapshot data
+    subscribers = Column(Integer, default=0)
+    total_views = Column(Integer, default=0)
+    video_count = Column(Integer, default=0)
+    recent_videos_data = Column(JSON, default=[])
+    
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    user = relationship("User")
