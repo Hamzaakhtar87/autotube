@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -270,7 +270,7 @@ def admin_health(
     # DB check
     db_ok = False
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db_ok = True
     except Exception:
         pass
