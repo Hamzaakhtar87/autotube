@@ -30,12 +30,14 @@ router = APIRouter()
 # REQUEST/RESPONSE SCHEMAS
 # ============================================================================
 
+from pydantic import BaseModel, Field
+
 class JobCreate(BaseModel):
     test_mode: bool = False  # Legacy/simple toggle
-    videos_count: int = 7
-    output_action: str = "generate_only"  # generate_only, auto_publish, schedule
-    video_format: str = "short"  # short (9:16) or long (16:9)
-    schedule_datetime: str = ""  # ISO datetime for scheduled publish
+    videos_count: int = Field(7, ge=1, le=10)
+    output_action: str = Field("generate_only", pattern=r"^(generate_only|auto_publish|schedule)$")
+    video_format: str = Field("short", pattern=r"^(short|long)$")
+    schedule_datetime: str = Field("", max_length=100)
 
 
 class JobLogResponse(BaseModel):

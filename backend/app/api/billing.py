@@ -159,7 +159,7 @@ def handle_subscription_created(data: dict, user_id: str, db: Session):
     elif 'pro' in product_name:
         tier = SubscriptionTier.PRO
         
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    user = db.query(User).filter(User.id == int(user_id)).with_for_update().first()
     if user:
         user.subscription_tier = tier
         user.stripe_customer_id = str(attributes.get('customer_id'))
@@ -176,10 +176,29 @@ def handle_subscription_updated(data: dict, user_id: str, db: Session):
     if not user_id:
         return
         
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    user = db.query(User).filter(User.id == int(user_id)).with_for_update().first()
     if user:
         if status in ['expired', 'cancelled']:
             user.subscription_tier = SubscriptionTier.FREE
             user.stripe_subscription_id = None
             db.commit()
             logger.info(f"User {user.id} downgraded to FREE due to subscription cancellation (Lemon Squeezy)")
+
+def cancel_lemonsqueezy_subscription(subscription_id: str):
+    """Hits the Lemon Squeezy API to officially cancel an active subscription."""
+    import requests
+    if not LEMON_API_KEY or not subscription_id:
+        return
+        
+    # Standard implementation: DELETE /v1/subscriptions/:id
+    url = f"https://api.lemonsqueezy.com/v1/subscriptions/{subscription_id}"
+    headers = {
+        "Accept": "application/vnd.api+json",
+        "Authorization": f"Bearer {LEMON_API_KEY}"
+    }
+    try:
+        response = requests.delete(url, headers=headers, timeout=5)
+        response.raise_for_status()
+        logger.info(f"Successfully cancelled Lemon Squeezy subscription: {subscription_id}")
+    except Exception as e:
+        logger.error(f"Failed to cancel Lemon Squeezy subscription {subscription_id}: {e}")

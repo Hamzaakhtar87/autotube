@@ -218,6 +218,12 @@ def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    if user.stripe_subscription_id:
+        from app.api.billing import cancel_lemonsqueezy_subscription
+        import threading
+        # Run in thread so the request doesn't block admin UI
+        threading.Thread(target=cancel_lemonsqueezy_subscription, args=(user.stripe_subscription_id,)).start()
+
     db.delete(user)
     db.commit()
     return {"message": f"User {user.email} and all associated data deleted"}

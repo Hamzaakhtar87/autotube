@@ -27,23 +27,25 @@ class ConfigStatus(BaseModel):
     pexels_key_configured: bool
     is_admin: bool = False
 
+from pydantic import BaseModel, Field
+
 class APIKeys(BaseModel):
     pexels_key: str
     gemini_key: str
 
 class UserPreferences(BaseModel):
-    voice: str = "en-US-GuyNeural"
-    niche: str = "psychology"
-    default_video_count: int = 7
-    bg_music: str = "random"
-    bg_music_volume: float = 0.15
-    video_format: str = "short"
-    custom_topic: str = ""
-    custom_niche: str = ""
-    channel_style: str = "narration"
-    tone: str = "serious"
-    output_action: str = "generate_only"
-    schedule_datetime: str = ""
+    voice: str = Field("en-US-GuyNeural", pattern=r"^[a-zA-Z0-9_\-]+$")
+    niche: str = Field("psychology", pattern=r"^[a-zA-Z0-9 _,.!\-?'\"]*$", max_length=150)
+    default_video_count: int = Field(7, ge=1, le=10)
+    bg_music: str = Field("random", pattern=r"^[a-zA-Z0-9_\-]+$")
+    bg_music_volume: float = Field(0.15, ge=0.0, le=1.0)
+    video_format: str = Field("short", pattern=r"^(short|long)$")
+    custom_topic: str = Field("", pattern=r"^[a-zA-Z0-9 _,.!\-?'\"]*$", max_length=150)
+    custom_niche: str = Field("", pattern=r"^[a-zA-Z0-9 _,.!\-?'\"]*$", max_length=150)
+    channel_style: str = Field("narration", pattern=r"^[a-zA-Z0-9_\-]+$")
+    tone: str = Field("serious", pattern=r"^[a-zA-Z0-9_\-]+$")
+    output_action: str = Field("generate_only", pattern=r"^(generate_only|auto_publish|schedule)$")
+    schedule_datetime: str = Field("", max_length=100)
 
 @router.get("/config/status", response_model=ConfigStatus)
 def get_config_status(
