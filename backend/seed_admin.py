@@ -15,7 +15,7 @@ def seed_admin():
             logger.info("Seeding enterprise admin user...")
             admin_user = User(
                 email=admin_email,
-                hashed_password=get_password_hash("Enterprise2026!"),
+                password_hash=get_password_hash("Enterprise2026!"),
                 subscription_tier="enterprise",
                 is_active=True
             )
