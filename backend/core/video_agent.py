@@ -69,6 +69,9 @@ class VideoAgent:
             '-vf', "format=yuv420p",
             '-t', '60',
             '-r', str(self.fps),
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '35',
             '-y', str(BACKGROUND_VIDEO_PATH)
         ]
         try:
@@ -84,6 +87,9 @@ class VideoAgent:
             '-i', f'color=c=0x1a1a2e:s={self.width}x{self.height}:d=60',
             '-vf', "format=yuv420p",
             '-r', str(self.fps),
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '35',
             '-y', str(BACKGROUND_VIDEO_PATH)
         ]
         subprocess.run(cmd, check=True)
