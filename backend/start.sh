@@ -3,6 +3,13 @@
 
 echo "Starting Autotube Backend & Celery Worker..."
 
+# Run database migrations to initialize tables on the fresh Supabase database
+echo "Running database migrations..."
+python -m alembic upgrade head
+
+# Seed the environment with basic startup accounts (Enterprise User)
+python seed_admin.py
+
 # Start Celery worker in the background
 python -m celery -A app.worker.celery worker --beat --loglevel=info &
 
