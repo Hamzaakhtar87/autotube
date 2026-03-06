@@ -1,6 +1,6 @@
 from app.db import SessionLocal
 from app.models.models import User
-from core.security import get_password_hash
+from app.services.auth_service import get_password_hash
 import logging
 
 logging.basicConfig(level=logging.INFO)
