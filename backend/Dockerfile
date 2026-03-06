@@ -24,5 +24,5 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Command is overridden by docker-compose, but good default
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default Render command
+CMD ["bash", "start.sh"]
