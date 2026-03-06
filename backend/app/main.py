@@ -41,6 +41,7 @@ app_url = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3000")
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://autotube-beta.vercel.app",
     app_url
 ]
 
