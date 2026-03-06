@@ -24,12 +24,21 @@ else:
     sys.path.insert(0, _CORE_DIR)
 
 # Define Celery App
+from celery.schedules import crontab
+
 celery = Celery(
     "worker",
     broker=os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0"),
     backend=os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
 )
 
+celery.conf.beat_schedule = {
+    'reset-monthly-usage-on-1st': {
+        'task': 'app.worker.reset_all_monthly_usage',
+        'schedule': crontab(day_of_month='1', hour='0', minute='0'),
+    },
+}
+celery.conf.timezone = 'UTC'
 class DatabaseLogHandler(logging.Handler):
     """
     Custom logging handler that writes logs to the database for a specific job.
@@ -128,9 +137,10 @@ def run_batch_task(self, job_id: int, test_mode: bool = False):
                 
             # Grab user's connected YouTube credentials from the SaaS DB
             from app.models.models import YouTubeAccount
+            from app.core.security import decrypt_dict
             account = db.query(YouTubeAccount).filter(YouTubeAccount.user_id == job.user_id).first()
             if account and account.credentials_json:
-                youtube_creds = account.credentials_json
+                youtube_creds = decrypt_dict(account.credentials_json)
                 
         # Get video_format and output_action from job config
         video_format = job.config.get("video_format", "short") if job.config else "short"
@@ -176,6 +186,21 @@ def run_batch_task(self, job_id: int, test_mode: bool = False):
         except: pass
         root_logger.error(f"❌ critical error in worker: {str(e)}")
     finally:
+        # Prevent Storage Exhaustion (Zombie videos) by cleaning old temp files
+        try:
+            from config import TEMP_DIR
+            current_time = time.time()
+            for root, dirs, files in os.walk(TEMP_DIR):
+                for file in files:
+                    if "autotube_bg.mp4" in file:
+                        continue
+                    filepath = os.path.join(root, file)
+                    # delete if older than 2 hours (7200 sec)
+                    if os.path.getmtime(filepath) < current_time - 7200:
+                        os.remove(filepath)
+        except Exception as cleanup_err:
+            root_logger.error(f"Cleanup failed (non-fatal): {cleanup_err}")
+
         # Capture status before closing session (avoid DetachedInstanceError)
         final_status = str(job.status) if job else "unknown"
         root_logger.removeHandler(db_handler)
@@ -183,3 +208,21 @@ def run_batch_task(self, job_id: int, test_mode: bool = False):
         db.close()
 
     return final_status
+
+@celery.task(name="app.worker.reset_all_monthly_usage")
+def reset_all_monthly_usage():
+    """Wipes the monthly usage limits across all users. Triggered on the 1st of every month."""
+    from datetime import datetime
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        now = datetime.utcnow()
+        for user in users:
+            user.videos_generated_this_month = 0
+            user.usage_reset_at = now
+        db.commit()
+        logging.getLogger(__name__).info("✅ Reset monthly usage limits for all users.")
+    except Exception as e:
+        logging.getLogger(__name__).error(f"❌ Failed to reset monthly usage: {e}")
+    finally:
+        db.close()

@@ -9,6 +9,7 @@ import logging
 from app.db import get_db
 from app.models.models import User, CompetitorChannel
 from app.services.auth_service import get_current_user
+from urllib.parse import urlparse
 from backend.core.providers.youtube_provider import YouTubeProvider  # Assumed available in core
 
 router = APIRouter(prefix="/competitors", tags=["competitor-analysis"])
@@ -43,6 +44,13 @@ def add_competitor(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Competitor tracking requires a Pro or Enterprise subscription."
+        )
+        
+    parsed_url = urlparse(data.channel_url)
+    if parsed_url.scheme not in ["http", "https"] or not parsed_url.hostname or not parsed_url.hostname.endswith("youtube.com"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid YouTube channel URL. Must be a valid youtube.com link."
         )
         
     count = db.query(CompetitorChannel).filter(CompetitorChannel.user_id == current_user.id).count()

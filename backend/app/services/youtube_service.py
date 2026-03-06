@@ -93,7 +93,9 @@ def sync_channel_stats(db: Session, user: User):
             continue
             
         try:
-            service = YouTubeService(account.credentials_json)
+            from app.core.security import decrypt_dict
+            creds = decrypt_dict(account.credentials_json)
+            service = YouTubeService(creds)
             stats = service.get_channel_stats()
             
             if not stats:

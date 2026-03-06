@@ -160,9 +160,13 @@ def stop_job(
     db: Session = Depends(get_db)
 ):
     """Stop a running job."""
-    job = db.query(Job).filter(
+    from sqlalchemy import or_
+    job = db.query(Job).join(User, Job.user_id == User.id).filter(
         Job.id == job_id,
-        Job.user_id == current_user.id
+        or_(
+            Job.user_id == current_user.id,
+            (User.workspace_id == current_user.workspace_id) & (current_user.workspace_id != None)
+        )
     ).first()
     
     if not job:
@@ -193,8 +197,12 @@ def list_jobs(
     db: Session = Depends(get_db)
 ):
     """List all jobs for the current user."""
-    jobs = db.query(Job).filter(
-        Job.user_id == current_user.id
+    from sqlalchemy import or_
+    jobs = db.query(Job).join(User, Job.user_id == User.id).filter(
+        or_(
+            Job.user_id == current_user.id,
+            (User.workspace_id == current_user.workspace_id) & (current_user.workspace_id != None)
+        )
     ).order_by(Job.id.desc()).offset(skip).limit(limit).all()
     
     return [
@@ -217,11 +225,15 @@ def get_job_details(
     db: Session = Depends(get_db)
 ):
     """Get detailed information about a specific job."""
-    job = db.query(Job).options(
+    from sqlalchemy import or_
+    job = db.query(Job).join(User, Job.user_id == User.id).options(
         joinedload(Job.logs)
     ).filter(
         Job.id == job_id,
-        Job.user_id == current_user.id
+        or_(
+            Job.user_id == current_user.id,
+            (User.workspace_id == current_user.workspace_id) & (current_user.workspace_id != None)
+        )
     ).first()
     
     if not job:

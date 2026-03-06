@@ -46,7 +46,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if "sub" in to_encode:
         to_encode["sub"] = str(to_encode["sub"])
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire, "type": "access"})
+    to_encode.update({
+        "exp": expire, 
+        "iat": datetime.utcnow(),
+        "type": "access"
+    })
     return jwt.encode(to_encode, config.SECRET_KEY, algorithm=config.ALGORITHM)
 
 
@@ -172,7 +176,12 @@ def revoke_refresh_token(db: Session, token: str) -> bool:
 
 
 def revoke_all_user_tokens(db: Session, user_id: int):
-    """Revoke all refresh tokens for a user (logout everywhere)."""
+    """Revoke all refresh tokens for a user (logout everywhere) and invalidate active JWT access tokens."""
+    # Invalidate existing JWTs
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.tokens_revoked_at = datetime.utcnow()
+        
     db.query(RefreshToken).filter(
         RefreshToken.user_id == user_id,
         RefreshToken.revoked == False
@@ -220,6 +229,16 @@ async def get_current_user(
             detail="User account is deactivated"
         )
     
+    # Block JWTs minted *before* the user clicked "Reset Password" or had tokens revoked
+    if user.tokens_revoked_at:
+        iat = payload.get("iat")
+        if not iat or iat < user.tokens_revoked_at.timestamp():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            
     return user
 
 

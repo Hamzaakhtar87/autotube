@@ -42,6 +42,9 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     email_verified_at = Column(DateTime(timezone=True), nullable=True)
     
+    # Security
+    tokens_revoked_at = Column(DateTime(timezone=True), nullable=True)
+    
     # Subscription fields
     subscription_tier = Column(String, default=SubscriptionTier.FREE)
     stripe_customer_id = Column(String, nullable=True, unique=True, index=True)

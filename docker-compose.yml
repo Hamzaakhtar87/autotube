@@ -86,7 +86,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.worker
-    command: celery -A app.worker.celery worker --loglevel=info --concurrency=4
+    command: celery -A app.worker.celery worker --beat --loglevel=info --concurrency=4
     volumes:
       - ./backend:/app
       - ./backend/core:/app/core

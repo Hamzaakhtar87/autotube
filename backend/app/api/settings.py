@@ -203,7 +203,8 @@ def google_auth_callback(
             account = YouTubeAccount(user_id=current_user.id)
             db.add(account)
         
-        account.credentials_json = json.loads(creds.to_json())
+        from app.core.security import encrypt_dict
+        account.credentials_json = encrypt_dict(json.loads(creds.to_json()))
         account.updated_at = datetime.utcnow()
         
         # Try to fetch channel info immediately if possible? 
