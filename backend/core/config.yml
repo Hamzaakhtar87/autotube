@@ -25,9 +25,9 @@ visuals:
     per_page: 5
 
 video:
-  width: 1080
-  height: 1920
-  fps: 30
+  width: 720
+  height: 1280
+  fps: 24
   duration:
     min: 40
     max: 60

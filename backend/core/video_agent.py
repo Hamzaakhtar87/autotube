@@ -65,9 +65,9 @@ class VideoAgent:
         cmd = [
             'ffmpeg',
             '-f', 'lavfi',
-            '-i', f'color=c=0x0f0f23:s={self.width}x{self.height}:d=60',
+            '-i', f'color=c=0x0f0f23:s={self.width}x{self.height}:d=1',
             '-vf', "format=yuv420p",
-            '-t', '60',
+            '-t', '1',
             '-r', str(self.fps),
             '-c:v', 'libx264',
             '-preset', 'ultrafast',
@@ -84,7 +84,7 @@ class VideoAgent:
         """Fallback: Create simple solid background"""
         cmd = [
             'ffmpeg', '-f', 'lavfi',
-            '-i', f'color=c=0x1a1a2e:s={self.width}x{self.height}:d=60',
+            '-i', f'color=c=0x1a1a2e:s={self.width}x{self.height}:d=1',
             '-vf', "format=yuv420p",
             '-r', str(self.fps),
             '-c:v', 'libx264',
@@ -227,7 +227,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         cmd = [
                             'ffmpeg', '-loop', '1', '-i', str(asset_path),
                             '-vf', (
-                                f"scale=1080:1920,setsar=1,"
+                                f"scale={self.width}:{self.height}:flags=fast_bilinear,setsar=1,"
                                 f"zoompan=z='zoom+0.0015':d={int(scene_duration * self.fps)}:s={self.width}x{self.height}:fps={self.fps},"
                                 "format=yuv420p"
                             ),
@@ -241,7 +241,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         cmd = [
                             'ffmpeg', '-i', str(asset_path),
                             '-vf', (
-                                f"scale={self.width}:{self.height}:force_original_aspect_ratio=increase,"
+                                f"scale={self.width}:{self.height}:force_original_aspect_ratio=increase:flags=fast_bilinear,"
                                 f"crop={self.width}:{self.height},"
                                 f"setsar=1,fps={self.fps},format=yuv420p"
                             ),
