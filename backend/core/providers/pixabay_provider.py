@@ -128,14 +128,16 @@ class PixabayProvider:
     def _download(self, url: str, temp_dir: Path) -> Path | None:
         """Download video from Pixabay."""
         try:
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
+            with requests.get(url, stream=True, timeout=30) as response:
+                response.raise_for_status()
 
-            filename = f"pixabay_{random.randint(10000, 99999)}.mp4"
-            path = temp_dir / filename
+                filename = f"pixabay_{random.randint(10000, 99999)}.mp4"
+                path = temp_dir / filename
 
-            with open(path, 'wb') as f:
-                f.write(response.content)
+                with open(path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
 
             size = path.stat().st_size
             if size < MIN_FILE_SIZE:

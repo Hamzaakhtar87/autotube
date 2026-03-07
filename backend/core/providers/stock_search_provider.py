@@ -154,16 +154,18 @@ class StockSearchProvider:
             return None
 
         try:
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
+            with requests.get(url, stream=True, timeout=30) as response:
+                response.raise_for_status()
 
-            content_type = response.headers.get("Content-Type", "")
-            ext = ".mp4" if "video" in content_type else ".jpg"
-            filename = f"{prefix}_{random.randint(10000, 99999)}{ext}"
-            path = temp_dir / filename
+                content_type = response.headers.get("Content-Type", "")
+                ext = ".mp4" if "video" in content_type else ".jpg"
+                filename = f"{prefix}_{random.randint(10000, 99999)}{ext}"
+                path = temp_dir / filename
 
-            with open(path, 'wb') as f:
-                f.write(response.content)
+                with open(path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
 
             return path
 

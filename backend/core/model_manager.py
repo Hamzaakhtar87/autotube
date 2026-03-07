@@ -97,10 +97,11 @@ class ModelManager:
 
             # Try fallback
             try:
-                self._wait_for_rate_limit()
-                result = self._call_gemini(prompt, GEMINI_FALLBACK, task)
-                if result:
-                    return result
+                if self.gemini_client:
+                    self._wait_for_rate_limit()
+                    result = self._call_gemini(prompt, GEMINI_FALLBACK, task)
+                    if result:
+                        return result
             except Exception as e:
                 errors.append(f"Gemini({GEMINI_FALLBACK}): {e}")
                 logger.warning(f"⚠️ Gemini fallback failed, cascading to Groq...")
