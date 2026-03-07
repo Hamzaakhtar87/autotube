@@ -49,17 +49,28 @@ class ScriptAgent:
             
             speech = ""
             visual = ""
+            current_mode = None
             
             for line in scene_content.split("\n"):
                 line = line.strip()
                 # Remove potential markdown bolding from prefixes
                 clean_line = line.replace("**", "")
+                upper_line = clean_line.upper()
                 
-                if clean_line.upper().startswith("SPEECH:"):
-                    speech = clean_line[7:].strip()
-                elif clean_line.upper().startswith("VISUAL:"):
-                    visual = clean_line[7:].strip()
+                if upper_line.startswith("SPEECH:") or upper_line.startswith("SPEECH :"):
+                    current_mode = "speech"
+                    speech += clean_line.split(":", 1)[1].strip() + " "
+                elif upper_line.startswith("VISUAL:") or upper_line.startswith("VISUAL :"):
+                    current_mode = "visual"
+                    visual += clean_line.split(":", 1)[1].strip() + " "
+                else:
+                    if current_mode == "speech":
+                        speech += line + " "
+                    elif current_mode == "visual":
+                        visual += line + " "
             
+            speech = speech.strip()
+            visual = visual.strip()
             if speech and visual:
                 scenes.append({"speech": speech, "visual": visual})
         

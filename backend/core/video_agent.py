@@ -418,33 +418,43 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             if docs:
                 chosen = random.choice(docs[:20]) # Top 20
                 identifier = chosen.get("identifier")
-                
-                # 2. Get file URL for this identifier
-                meta_url = f"https://archive.org/metadata/{identifier}"
-                meta_res = requests.get(meta_url, timeout=10)
-                meta_res.raise_for_status()
-                
-                # Find an mp3 from the response files
-                files = meta_res.json().get("files", [])
-                mp3s = [f for f in files if f.get("name", "").endswith(".mp3")]
-                
-                if mp3s:
-                    mp3_name = mp3s[0]["name"]
-                    download_url = f"https://archive.org/download/{identifier}/{mp3_name}"
-                    
-                    # 3. Download the track temporarily
-                    random_track_path = MUSIC_DIR / f"{identifier}.mp3"
-                    if not random_track_path.exists():
-                        logger.info(f"Downloading track from API -> {random_track_path.name}")
-                        mp3_bytes = requests.get(download_url, timeout=30).content
-                        with open(random_track_path, "wb") as f:
-                            f.write(mp3_bytes)
-                    else:
-                        logger.info(f"🎵 Using locally cached API track: {random_track_path.name}")
-
-                    return random_track_path
-                else:
-                    logger.warning("No MP3 file inside the chosen API archive item.")
+                # 2. Loop through top docs to find a strictly small audio file (<5MB) to prevent ffmpeg OOM lockups on Free Tier
+                for chosen in docs[:20]:
+                    identifier = chosen.get("identifier")
+                    meta_url = f"https://archive.org/metadata/{identifier}"
+                    try:
+                        meta_res = requests.get(meta_url, timeout=10)
+                        if meta_res.status_code != 200:
+                            continue
+                        
+                        files = meta_res.json().get("files", [])
+                        mp3s = [f for f in files if f.get("name", "").endswith(".mp3")]
+                        
+                        if mp3s:
+                            # Pick the smallest MP3 in this archive item to avoid 1-hour podcasts
+                            best_mp3 = min(mp3s, key=lambda x: int(x.get("size", 999999999)))
+                            size_bytes = int(best_mp3.get("size", 0))
+                            
+                            # Skip files larger than ~5MB (approx 5 minutes of music)
+                            if size_bytes > 5_000_000 or size_bytes < 50_000:
+                                continue
+                                
+                            mp3_name = best_mp3["name"]
+                            download_url = f"https://archive.org/download/{identifier}/{mp3_name}"
+                            
+                            random_track_path = MUSIC_DIR / f"{identifier}.mp3"
+                            if not random_track_path.exists():
+                                logger.info(f"Downloading track from API -> {random_track_path.name} ({(size_bytes/1024/1024):.1f}MB)")
+                                mp3_bytes = requests.get(download_url, timeout=30).content
+                                with open(random_track_path, "wb") as f:
+                                    f.write(mp3_bytes)
+                            else:
+                                logger.info(f"🎵 Using locally cached API track: {random_track_path.name}")
+                            return random_track_path
+                            
+                    except Exception:
+                        continue
+                logger.warning("No suitably small MP3 found in top Archive items.")
         except Exception as e:
             logger.warning(f"⚠️ Failed to fetch background music from API: {e}")
 
