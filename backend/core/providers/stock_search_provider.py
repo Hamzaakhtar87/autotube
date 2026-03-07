@@ -106,11 +106,12 @@ class StockSearchProvider:
             files = video.get("video_files", [])
 
             # Prefer vertical (portrait) video files
-            vertical = [f for f in files if f.get("width", 0) < f.get("height", 0)]
+            vertical = [f for f in files if (f.get("width") or 0) < (f.get("height") or 0)]
             if vertical:
-                best = max(vertical, key=lambda x: x.get("width", 0))
+                # Pick the video resolution closest to 720p to prevent 4K/UHD memory exhaustion on Free Tier
+                best = min(vertical, key=lambda x: abs((x.get("width") or 720) - 720))
             else:
-                best = files[0] if files else None
+                best = min(files, key=lambda x: abs((x.get("width") or 720) - 720)) if files else None
 
             if not best:
                 return None

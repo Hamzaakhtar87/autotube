@@ -113,8 +113,8 @@ class PixabayProvider:
             video = random.choice(pool)
             videos = video.get("videos", {})
 
-            # Prefer large quality for better visuals
-            video_data = videos.get("large", videos.get("medium", videos.get("small", {})))
+            # For 0.1vCPU Free Tier, prefer medium/small over large to prevent ffmpeg OOM lockups
+            video_data = videos.get("medium", videos.get("small", videos.get("large", {})))
             url = video_data.get("url")
 
             if url:
