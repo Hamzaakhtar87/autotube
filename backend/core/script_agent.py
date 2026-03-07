@@ -146,9 +146,11 @@ class ScriptAgent:
     def _get_hook_prompt(self, topic: str) -> str:
         style_inst = self._get_style_instruction()
         duration = "5-8" if self.video_format == "short" else "10-15"
+        words = "max 20 words" if self.video_format == "short" else "max 40 words"
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are a master {'Shorts' if self.video_format == 'short' else 'YouTube video'} creator. 
 Generate a {duration} second magnetic, human-sounding hook about: {topic}
+STRICT LIMIT: Keep the speech under {words} total.
 {style_inst}
 <|eot_id|><|start_header_id|>user<|end_header_id|>
 Use exactly this format:
@@ -161,9 +163,9 @@ VISUAL: [Visual descriptor]
     def _get_insights_prompt(self, topic: str, hook: str) -> str:
         style_inst = self._get_style_instruction()
         if self.video_format == "long":
-            scene_inst = f"Generate {self.insights_count} scenes of detailed insights (150-250 seconds total)."
+            scene_inst = f"Generate {self.insights_count} scenes of detailed insights (150-250 seconds total). STRICT LIMIT: Maximum 400 words globally across all scenes."
         else:
-            scene_inst = f"Generate {self.insights_count} scenes of NEW core insights ONLY (30-40s total)."
+            scene_inst = f"Generate {self.insights_count} scenes of NEW core insights ONLY (30-40s total). STRICT LIMIT: Keep speech very brief. Maximum 80 words globally across all scenes."
         
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are a script writer. Continue this {'short' if self.video_format == 'short' else 'video'} about {topic}.
@@ -184,8 +186,10 @@ VISUAL: [Visual]
     def _get_outro_prompt(self, topic: str) -> str:
         style_inst = self._get_style_instruction()
         duration = "5-7" if self.video_format == "short" else "10-15"
+        words = "max 15 words" if self.video_format == "short" else "max 30 words"
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 Generate a {duration}s outro for {topic}.
+STRICT LIMIT: Keep the speech under {words} total.
 {style_inst}
 <|eot_id|><|start_header_id|>user<|end_header_id|>
 Include "Drop a follow if this made you think."

@@ -121,15 +121,11 @@ class ModelManager:
     def _call_gemini(self, prompt: str, model: str, task: str) -> str:
         """Call Gemini API with rate-limit-aware retry."""
         logger.info(f"🤖 [GEMINI] Generating {task} with {model}...")
-        max_retries = 1  # Only 1 retry to save quota
+        max_retries = 1
         for attempt in range(max_retries + 1):
             try:
-                # SECURE: Prevent API Exhaustion (Exploit 12)
-                # Hard limit the input prompt to prevent users from draining tokens
-                safe_prompt = prompt[:4000]  # Max 4000 characters input
+                safe_prompt = prompt[:4000]
                 
-                # google-genai client doesn't explicitly expose timeout in generate_content config directly, 
-                # but we can rely on max_output_tokens and prompt slicing.
                 response = self.gemini_client.models.generate_content(
                     model=model,
                     contents=safe_prompt,
@@ -137,7 +133,7 @@ class ModelManager:
                         "temperature": 0.7,
                         "top_p": 0.9,
                         "top_k": 40,
-                        "max_output_tokens": 800, # Hard cap output lengths to save budget
+                        "max_output_tokens": 800,
                     }
                 )
                 result = response.text.strip()
@@ -147,8 +143,9 @@ class ModelManager:
             except Exception as e:
                 error_str = str(e)
                 if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                    # Don't retry rate limits — just cascade to next provider
-                    logger.warning(f"⚠️ Rate limited on {model}, cascading to next provider...")
+                    logger.warning(f"⚠️ Quota exhausted on {model}. Permanently cascading to Groq fallback...")
+                    # Permanently disable Gemini for this worker session to prevent further lag
+                    self.gemini_client = None
                     raise
                 elif attempt < max_retries:
                     wait = 3
