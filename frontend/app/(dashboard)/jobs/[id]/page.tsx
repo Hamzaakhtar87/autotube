@@ -223,7 +223,7 @@ export default function JobDetailPage() {
                     {/* Completion/Output Card */}
                     {isComplete && (
                         <Card className="border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-900/10">
-                            <CardHeader className="pb-3">
+                            <CardHeader className="pb-3 flex flex-row items-center justify-between">
                                 <CardTitle className="text-base text-green-800 dark:text-green-400">
                                     <CheckCircle2 className="h-5 w-5 inline mr-2" />
                                     Automation Complete
@@ -233,11 +233,33 @@ export default function JobDetailPage() {
                                 <p className="text-sm">
                                     The video has been successfully generated.
                                 </p>
-                                <p className="text-sm mt-2 text-muted-foreground break-all">
-                                    {(job?.logs?.find((l: any) => l.message?.includes("Video saved:"))?.message || "") ||
-                                        (job?.logs?.find((l: any) => l.message?.includes("YouTube"))?.message || "") ||
-                                        "Check the summary above for the final file path or upload link."}
-                                </p>
+
+                                {(() => {
+                                    const mp4Log = job?.logs?.find((l: any) => l.message?.includes(".mp4") && (l.message?.includes("output_v2") || l.message?.includes("Video saved:")))?.message || ""
+                                    const match = mp4Log.match(/output_v2\/([^ ]+\.mp4)/)
+                                    const filename = match ? match[1] : null;
+
+                                    if (filename) {
+                                        const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://autotube-api-oave.onrender.com'}/output/${filename}`;
+                                        return (
+                                            <div className="mt-4">
+                                                <a href={downloadUrl} target="_blank" rel="noreferrer" download>
+                                                    <Button className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white">
+                                                        ⬇️ Download Video
+                                                    </Button>
+                                                </a>
+                                            </div>
+                                        )
+                                    }
+
+                                    return (
+                                        <p className="text-sm mt-2 text-muted-foreground break-all">
+                                            {(job?.logs?.find((l: any) => l.message?.includes("Video saved:"))?.message || "") ||
+                                                (job?.logs?.find((l: any) => l.message?.includes("YouTube"))?.message || "") ||
+                                                "Check the summary above for the final file path or upload link."}
+                                        </p>
+                                    )
+                                })()}
                             </CardContent>
                         </Card>
                     )}
