@@ -227,11 +227,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         cmd = [
                             'ffmpeg', '-loop', '1', '-i', str(asset_path),
                             '-vf', (
-                                f"scale=2160:3840,setsar=1,"
+                                f"scale=1080:1920,setsar=1,"
                                 f"zoompan=z='zoom+0.0015':d={int(scene_duration * self.fps)}:s={self.width}x{self.height}:fps={self.fps},"
                                 "format=yuv420p"
                             ),
                             '-t', str(scene_duration),
+                            '-c:v', 'libx264',
+                            '-preset', 'ultrafast',
+                            '-threads', '1',
                             '-an', '-y', str(processed_clip)
                         ]
                     else:
@@ -243,6 +246,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                                 f"setsar=1,fps={self.fps},format=yuv420p"
                             ),
                             '-t', str(scene_duration),
+                            '-c:v', 'libx264',
+                            '-preset', 'ultrafast',
+                            '-threads', '1',
                             '-an', '-y', str(processed_clip)
                         ]
                     
@@ -331,8 +337,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             '-map', '[final]',
             *audio_map,
             '-t', str(duration),
-            '-c:v', 'libx264', '-preset', VIDEO_PRESET, '-crf', str(VIDEO_CRF),
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', str(VIDEO_CRF),
             '-b:v', VIDEO_BITRATE, '-c:a', 'aac', '-b:a', AUDIO_BITRATE,
+            '-threads', '1',
             '-pix_fmt', 'yuv420p', '-y', str(output_path)
         ]
 
