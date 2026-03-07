@@ -321,10 +321,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         # Audio: mix voiceover (full volume) + background music (subtle)
         if music_idx is not None:
             audio_filter = (
-                f"[{audio_idx}:a]volume=1.0[voice];"
-                f"[{music_idx}:a]volume={self.bg_music_volume},"
+                f"[{audio_idx}:a]volume=2.0[voice];"
+                f"[{music_idx}:a]volume={self.bg_music_volume * 2},"
                 f"afade=t=in:d=2,afade=t=out:st={max(0, duration-3)}:d=3[music];"
-                f"[voice][music]amix=inputs=2:duration=first:dropout_transition=3:normalize=false[aout]"
+                f"[voice][music]amix=inputs=2:duration=first:dropout_transition=3[aout]"
             )
             final_filter += f";{audio_filter}"
             audio_map = ['-map', '[aout]']

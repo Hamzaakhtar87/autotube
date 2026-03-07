@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     gcc \
     curl \
+    fontconfig \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
