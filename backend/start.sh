@@ -10,8 +10,8 @@ python -m alembic upgrade head
 # Seed the environment with basic startup accounts (Enterprise User)
 python seed_admin.py
 
-# Start Celery worker in the background
-python -m celery -A app.worker.celery worker --beat --loglevel=info &
+# Start Celery worker in the background (Concurrency 1 to prevent OOM on Free Tier)
+python -m celery -A app.worker.celery worker --beat --concurrency=1 --loglevel=info &
 
 # Start Uvicorn web server in the foreground
 python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} &

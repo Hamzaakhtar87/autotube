@@ -253,8 +253,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 logger.warning(f"Failed to process scene {i+1}: {e}")
                 return i, None
 
-        logger.info(f"⚡ Starting parallel visual processing for {len(scenes)} scenes...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        logger.info(f"⚡ Starting sequential visual processing for {len(scenes)} scenes (optimized for 512MB RAM)...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             futures = [executor.submit(process_scene, i, scene) for i, scene in enumerate(scenes)]
             for future in concurrent.futures.as_completed(futures):
                 idx, clip_path = future.result()
