@@ -324,7 +324,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 f"[{audio_idx}:a]volume=2.0[voice];"
                 f"[{music_idx}:a]volume={self.bg_music_volume * 2},"
                 f"afade=t=in:d=2,afade=t=out:st={max(0, duration-3)}:d=3[music];"
-                f"[voice][music]amix=inputs=2:duration=first:dropout_transition=3[aout]"
+                f"[voice][music]amix=inputs=2:duration=first[aout]"
             )
             final_filter += f";{audio_filter}"
             audio_map = ['-map', '[aout]']
@@ -398,67 +398,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         
         mood = niche_moods.get(niche.lower(), "lofi")
 
-        # If random, pull from Archive.org open database API
-        try:
-            logger.info(f"🎵 Fetching random copyright-free {mood} beat from Archive.org API...")
-            
-            # 1. Search for public domain / FMA tracks matching the mood
-            search_url = "https://archive.org/advancedsearch.php"
-            params = {
-                "q": f"mediatype:audio AND subject:{mood} AND format:mp3",
-                "fl[]": "identifier",
-                "sort[]": "downloads desc",
-                "output": "json",
-                "rows": 50
-            }
-            res = requests.get(search_url, params=params, timeout=10)
-            res.raise_for_status()
-            docs = res.json().get("response", {}).get("docs", [])
-            
-            if docs:
-                chosen = random.choice(docs[:20]) # Top 20
-                identifier = chosen.get("identifier")
-                # 2. Loop through top docs to find a strictly small audio file (<5MB) to prevent ffmpeg OOM lockups on Free Tier
-                for chosen in docs[:20]:
-                    identifier = chosen.get("identifier")
-                    meta_url = f"https://archive.org/metadata/{identifier}"
-                    try:
-                        meta_res = requests.get(meta_url, timeout=10)
-                        if meta_res.status_code != 200:
-                            continue
-                        
-                        files = meta_res.json().get("files", [])
-                        mp3s = [f for f in files if f.get("name", "").endswith(".mp3")]
-                        
-                        if mp3s:
-                            # Pick the smallest MP3 in this archive item to avoid 1-hour podcasts
-                            best_mp3 = min(mp3s, key=lambda x: int(x.get("size", 999999999)))
-                            size_bytes = int(best_mp3.get("size", 0))
-                            
-                            # Skip files larger than ~5MB (approx 5 minutes of music)
-                            if size_bytes > 5_000_000 or size_bytes < 50_000:
-                                continue
-                                
-                            mp3_name = best_mp3["name"]
-                            download_url = f"https://archive.org/download/{identifier}/{mp3_name}"
-                            
-                            random_track_path = MUSIC_DIR / f"{identifier}.mp3"
-                            if not random_track_path.exists():
-                                logger.info(f"Downloading track from API -> {random_track_path.name} ({(size_bytes/1024/1024):.1f}MB)")
-                                mp3_bytes = requests.get(download_url, timeout=30).content
-                                with open(random_track_path, "wb") as f:
-                                    f.write(mp3_bytes)
-                            else:
-                                logger.info(f"🎵 Using locally cached API track: {random_track_path.name}")
-                            return random_track_path
-                            
-                    except Exception:
-                        continue
-                logger.warning("No suitably small MP3 found in top Archive items.")
-        except Exception as e:
-            logger.warning(f"⚠️ Failed to fetch background music from API: {e}")
+        # Fallback to local files
 
-        # Final Fallback to local files if API fails
         tracks = [t for t in MUSIC_DIR.glob("*.mp3") if t.stat().st_size > 50_000]
         if not tracks:
             logger.warning("⚠️ No valid background music tracks found locally")

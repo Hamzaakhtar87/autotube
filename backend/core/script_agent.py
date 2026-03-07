@@ -28,8 +28,8 @@ class ScriptAgent:
             self.insights_count = "8-12"
         else:
             self.target_duration = f"{SCRIPT_MIN_DURATION}-{SCRIPT_MAX_DURATION}"
-            self.target_scenes = "4-5"
-            self.insights_count = "3-5"
+            self.target_scenes = "5-7"
+            self.insights_count = "4"
     
     def parse_scenes(self, raw_script: str) -> list[dict]:
         """Parse raw script into a list of scene dictionaries"""
@@ -165,7 +165,7 @@ VISUAL: [Visual descriptor]
         if self.video_format == "long":
             scene_inst = f"Generate {self.insights_count} scenes of detailed insights (150-250 seconds total). STRICT LIMIT: Maximum 400 words globally across all scenes."
         else:
-            scene_inst = f"Generate EXACTLY {self.insights_count} scenes of core insights. STRICT LENGTH REQUIREMENT: You MUST write 3 to 4 full sentences of spoken dialogue for EVERY single scene. Do not write short 1-sentence scenes. Total word count across these scenes must be between 110 and 130 words."
+            scene_inst = f"Generate EXACTLY {self.insights_count} scenes. STRICT LENGTH REQUIREMENT: Each scene MUST contain around 30 words of spoken dialogue. Total word count across these {self.insights_count} scenes must be exactly between 110 and 130 words."
         
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are a script writer. Continue this {'short' if self.video_format == 'short' else 'video'} about {topic}.
