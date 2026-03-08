@@ -40,14 +40,14 @@ class ScriptAgent:
         clean_script = raw_script.replace("**", "")
         
         # Split aggressively by ANY opening [SCENE...] tag, handling [SCENE 1], [Scene 2], [SCENE], etc.
-        parts = re.split(r'(?i)\[SCENE.*?\]', clean_script)
+        parts = re.split(r'\[SCENE.*?\]', clean_script, flags=re.IGNORECASE)
         
         for part in parts:
             if not part.strip():
                 continue
                 
             # Strip out any trailing closing tags like [/SCENE 1] or [/SCENE]
-            scene_content = re.sub(r'(?i)\[/SCENE.*?\]', '', part).strip()
+            scene_content = re.sub(r'\[/SCENE.*?\]', '', part, flags=re.IGNORECASE).strip()
             
             speech = ""
             visual = ""
@@ -68,9 +68,9 @@ class ScriptAgent:
         # we can still extract the speech and visual blocks out of thin air.
         if len(scenes) < 2:
             scenes = []
-            raw_parts = re.split(r'(?i)SPEECH\s*:', clean_script)
+            raw_parts = re.split(r'SPEECH\s*:', clean_script, flags=re.IGNORECASE)
             for p in raw_parts[1:]:
-                v_split = re.split(r'(?i)VISUAL\s*:', p)
+                v_split = re.split(r'VISUAL\s*:', p, flags=re.IGNORECASE)
                 if len(v_split) >= 2:
                     speech = v_split[0].strip().replace("\n", " ")
                     visual = v_split[1].strip().replace("\n", " ")
@@ -101,9 +101,14 @@ class ScriptAgent:
             
             # Combine and parse
             raw_script = f"{hook_raw}\n{insights_raw}\n{outro_raw}"
-            scenes = self.parse_scenes(raw_script)
+            try:
+                scenes = self.parse_scenes(raw_script)
+            except Exception as e:
+                logger.error(f"Error parsing scenes: {e}")
+                scenes = []
             
             if not scenes:
+                logger.error(f"Raw script that failed parsing:\n{raw_script}")
                 raise Exception("FAILED_TO_PARSE_CHUNKS")
 
             full_text = " ".join([s["speech"] for s in scenes])
