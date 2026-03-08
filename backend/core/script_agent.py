@@ -53,8 +53,8 @@ class ScriptAgent:
             visual = ""
             
             # Use DOTALL to grab multi-line text between SPEECH: and VISUAL: tags (in any order)
-            speech_match = re.search(r'(?i)SPEECH\s*:(.*?)(?=(?i)VISUAL\s*:|$)', scene_content, re.DOTALL)
-            visual_match = re.search(r'(?i)VISUAL\s*:(.*?)(?=(?i)SPEECH\s*:|$)', scene_content, re.DOTALL)
+            speech_match = re.search(r'SPEECH\s*:(.*?)(?=VISUAL\s*:|$)', scene_content, re.IGNORECASE | re.DOTALL)
+            visual_match = re.search(r'VISUAL\s*:(.*?)(?=SPEECH\s*:|$)', scene_content, re.IGNORECASE | re.DOTALL)
             
             if speech_match:
                 speech = speech_match.group(1).strip().replace("\n", " ")
@@ -66,7 +66,8 @@ class ScriptAgent:
                 
         # SUPER FALLBACK: If the LLM just hallucinated completely and didn't use [SCENE] tags AT ALL,
         # we can still extract the speech and visual blocks out of thin air.
-        if not scenes:
+        if len(scenes) < 2:
+            scenes = []
             raw_parts = re.split(r'(?i)SPEECH\s*:', clean_script)
             for p in raw_parts[1:]:
                 v_split = re.split(r'(?i)VISUAL\s*:', p)
