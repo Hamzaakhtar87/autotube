@@ -165,7 +165,7 @@ VISUAL: [Visual descriptor]
         if self.video_format == "long":
             scene_inst = f"Generate {self.insights_count} scenes of detailed insights (150-250 seconds total). STRICT LIMIT: Maximum 400 words globally across all scenes."
         else:
-            scene_inst = f"Generate {self.insights_count} scenes. STRICT LENGTH REQUIREMENT: The total spoken word count for the entire video MUST be designed to hit the 55 to 60-second mark exactly. Therefore, across these {self.insights_count} new scenes, you MUST generate a total of exactly 110 to 120 words. Each individual scene should be detailed enough (at least 2 to 3 sentences) to meet this global requirement."
+            scene_inst = f"Generate EXACTLY {self.insights_count} scenes. STRICT LENGTH REQUIREMENT: You MUST write exactly 2 long, highly detailed sentences of spoken dialogue for EVERY single scene. NEVER use word counts. Just write exactly 2 full sentences per scene. This guarantees the voiceover hits the 55-60 second algorithm mark perfectly."
         
         return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are a script writer. Continue this {'short' if self.video_format == 'short' else 'video'} about {topic}.
