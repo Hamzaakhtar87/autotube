@@ -32,48 +32,50 @@ class ScriptAgent:
             self.insights_count = "5-7"
     
     def parse_scenes(self, raw_script: str) -> list[dict]:
-        """Parse raw script into a list of scene dictionaries"""
+        """Parse raw script into a list of scene dictionaries using robust regex to handle ANY LLM formatting variations."""
+        import re
         scenes = []
         
-        # Remove potential markdown formatting from markers
-        clean_script = raw_script.replace("**[SCENE]**", "[SCENE]").replace("**[/SCENE]**", "[/SCENE]")
-        clean_script = clean_script.replace("**SPEECH:**", "SPEECH:").replace("**VISUAL:**", "VISUAL:")
+        # Strip all markdown bolding
+        clean_script = raw_script.replace("**", "")
         
-        raw_scenes = clean_script.split("[SCENE]")
+        # Split aggressively by ANY opening [SCENE...] tag, handling [SCENE 1], [Scene 2], [SCENE], etc.
+        parts = re.split(r'(?i)\[SCENE.*?\]', clean_script)
         
-        for raw_scene in raw_scenes:
-            if "[/SCENE]" not in raw_scene:
+        for part in parts:
+            if not part.strip():
                 continue
                 
-            scene_content = raw_scene.split("[/SCENE]")[0].strip()
+            # Strip out any trailing closing tags like [/SCENE 1] or [/SCENE]
+            scene_content = re.sub(r'(?i)\[/SCENE.*?\]', '', part).strip()
             
             speech = ""
             visual = ""
-            current_mode = None
             
-            for line in scene_content.split("\n"):
-                line = line.strip()
-                # Remove potential markdown bolding from prefixes
-                clean_line = line.replace("**", "")
-                upper_line = clean_line.upper()
+            # Use DOTALL to grab multi-line text between SPEECH: and VISUAL: tags (in any order)
+            speech_match = re.search(r'(?i)SPEECH\s*:(.*?)(?=(?i)VISUAL\s*:|$)', scene_content, re.DOTALL)
+            visual_match = re.search(r'(?i)VISUAL\s*:(.*?)(?=(?i)SPEECH\s*:|$)', scene_content, re.DOTALL)
+            
+            if speech_match:
+                speech = speech_match.group(1).strip().replace("\n", " ")
+            if visual_match:
+                visual = visual_match.group(1).strip().replace("\n", " ")
                 
-                if upper_line.startswith("SPEECH:") or upper_line.startswith("SPEECH :"):
-                    current_mode = "speech"
-                    speech += clean_line.split(":", 1)[1].strip() + " "
-                elif upper_line.startswith("VISUAL:") or upper_line.startswith("VISUAL :"):
-                    current_mode = "visual"
-                    visual += clean_line.split(":", 1)[1].strip() + " "
-                else:
-                    if current_mode == "speech":
-                        speech += line + " "
-                    elif current_mode == "visual":
-                        visual += line + " "
-            
-            speech = speech.strip()
-            visual = visual.strip()
             if speech and visual:
                 scenes.append({"speech": speech, "visual": visual})
-        
+                
+        # SUPER FALLBACK: If the LLM just hallucinated completely and didn't use [SCENE] tags AT ALL,
+        # we can still extract the speech and visual blocks out of thin air.
+        if not scenes:
+            raw_parts = re.split(r'(?i)SPEECH\s*:', clean_script)
+            for p in raw_parts[1:]:
+                v_split = re.split(r'(?i)VISUAL\s*:', p)
+                if len(v_split) >= 2:
+                    speech = v_split[0].strip().replace("\n", " ")
+                    visual = v_split[1].strip().replace("\n", " ")
+                    if speech and visual:
+                        scenes.append({"speech": speech, "visual": visual})
+
         return scenes
 
     def generate_script(self, topic: str) -> dict:
