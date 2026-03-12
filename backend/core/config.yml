@@ -29,7 +29,7 @@ video:
   height: 1280
   fps: 24
   duration:
-    min: 40
+    min: 55
     max: 60
   bitrate: "5M"
   audio_bitrate: "192k"

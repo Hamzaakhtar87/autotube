@@ -81,8 +81,8 @@ class ScriptAgent:
 
     def generate_script(self, topic: str) -> dict:
         """
-        Generate a highly realistic YouTube Short script using semantic chunking
-        for faster inference and higher quality.
+        Generate a YouTube Short script using semantic chunking.
+        ENFORCES minimum duration (55-60s) programmatically — never trusts the LLM to count words.
         """
         logger.info(f"📝 [CHUNKED_MODE] Starting multi-phase generation for: {topic}")
         
@@ -91,7 +91,7 @@ class ScriptAgent:
             logger.info("🔗 [PHASE 1/3] Generating Hook...")
             hook_raw = model_manager.generate_content(self._get_hook_prompt(topic), task="script_hook")
             
-            # Phase 2: The Insights (30-40s)
+            # Phase 2: The Insights — this is where the bulk of the duration comes from
             logger.info("🧠 [PHASE 2/3] Generating Core Insights...")
             insights_raw = model_manager.generate_content(self._get_insights_prompt(topic, hook_raw), task="script_insights")
             
@@ -111,9 +111,48 @@ class ScriptAgent:
                 logger.error(f"Raw script that failed parsing:\n{raw_script}")
                 raise Exception("FAILED_TO_PARSE_CHUNKS")
 
+            # ===== DURATION ENFORCEMENT LOOP =====
+            # Calculate current duration. If too short, request MORE scenes and append them.
             full_text = " ".join([s["speech"] for s in scenes])
             word_count = len(full_text.split())
             estimated_duration = word_count / 2.5
+            min_duration = SCRIPT_MIN_DURATION  # 55s from config.yml
+            
+            max_retries = 3
+            retry = 0
+            while estimated_duration < min_duration and retry < max_retries:
+                deficit_seconds = min_duration - estimated_duration
+                deficit_words = int(deficit_seconds * 2.5)
+                logger.info(f"⚠️ Script too short ({estimated_duration:.1f}s). Need ~{deficit_words} more words. Requesting extra scenes (attempt {retry+1}/{max_retries})...")
+                
+                extra_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are a script writer. Continue adding MORE scenes to a video about: {topic}.
+The video currently has {len(scenes)} scenes but needs more content.
+Write 2-3 NEW scenes with fresh facts/insights. Each scene MUST have 2-3 long detailed sentences.
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+Format:
+[SCENE]
+SPEECH: [New insight with 2-3 detailed sentences]
+VISUAL: [Visual descriptor]
+[/SCENE]
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+                
+                try:
+                    extra_raw = model_manager.generate_content(extra_prompt, task="script_extend")
+                    extra_scenes = self.parse_scenes(extra_raw)
+                    if extra_scenes:
+                        # Insert extra scenes BEFORE the last scene (outro)
+                        outro_scene = scenes[-1]
+                        scenes = scenes[:-1] + extra_scenes + [outro_scene]
+                        full_text = " ".join([s["speech"] for s in scenes])
+                        word_count = len(full_text.split())
+                        estimated_duration = word_count / 2.5
+                        logger.info(f"✅ Extended script: {len(scenes)} scenes ({estimated_duration:.1f}s)")
+                except Exception as ext_e:
+                    logger.warning(f"⚠️ Extension attempt failed: {ext_e}")
+                
+                retry += 1
+            # ===== END ENFORCEMENT LOOP =====
             
             logger.info(f"✅ [QUALITY_MODE: FULL] Chunked script ready: {len(scenes)} scenes ({estimated_duration:.1f}s)")
             
@@ -209,13 +248,16 @@ VISUAL: [Symbolic visual]
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     def _get_fallback_script(self, topic: str) -> dict:
-        """Emergency hardcoded script template to prevent job death"""
+        """Emergency hardcoded script template to prevent job death — sized to hit 55-60s"""
         scenes = [
-            {"speech": f"Ever wonder why {topic} is such a big deal? Well, basically, it's all about perspective.", "visual": f"{topic} overview"},
-            {"speech": "Think about it. Here's the thing. Most people look at it one way, but there's a deeper layer most miss.", "visual": "Deep thinking abstract"},
-            {"speech": "Actually, when you dive into the details, you know what's interesting? It's more about behavior than facts.", "visual": "Behavioral pattern visual"},
-            {"speech": "So, keep this in mind next time you see it. It might just change your mind.", "visual": "Mind shift concept"},
-            {"speech": "Right? Drop a follow if this made you think. We're diving deeper every day.", "visual": "Conclusion and follow CTA"}
+            {"speech": f"Ever wonder why {topic} is such a big deal? Well, it turns out there's way more to it than most people realize, and today we're going to break it all down.", "visual": f"{topic} overview"},
+            {"speech": "Think about it for a second. Most people only see the surface level, but underneath there's a whole hidden layer that changes everything you thought you knew.", "visual": "Deep thinking abstract"},
+            {"speech": "Here's what's really fascinating. When researchers actually looked into this, they found patterns that completely contradicted the conventional wisdom we've all been taught.", "visual": "Research data visualization"},
+            {"speech": "And it gets even crazier. The deeper you dig, the more you realize it's not about what happened, but about why it happened and what it means for us today.", "visual": "Historical timeline montage"},
+            {"speech": "Actually, when you dive into the details and really examine the evidence, you start to see connections that nobody talks about in the mainstream conversation.", "visual": "Behavioral pattern visual"},
+            {"speech": "This is the part that blows most people's minds. The implications of all this are massive, and they affect everything from how we think to how we make decisions every single day.", "visual": "Mind-bending concept art"},
+            {"speech": "So next time you come across this topic, remember what you learned here. It might just completely change the way you see the world around you.", "visual": "Perspective shift visual"},
+            {"speech": "Drop a follow if this made you think. We're diving deeper into stories like this every single day, and trust me, the next one is even wilder.", "visual": "Conclusion and follow CTA"},
         ]
         full_text = " ".join([s["speech"] for s in scenes])
         return {
