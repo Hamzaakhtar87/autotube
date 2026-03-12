@@ -398,11 +398,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         
         mood = niche_moods.get(niche.lower(), "lofi")
 
-        # Fallback to local files
-
-        tracks = [t for t in MUSIC_DIR.glob("*.mp3") if t.stat().st_size > 50_000]
+        # Fallback to local files — only use files between 50KB and 5MB to avoid podcasts/audiobooks
+        MAX_MUSIC_SIZE = 5_000_000  # 5MB
+        tracks = [t for t in MUSIC_DIR.glob("*.mp3") if 50_000 < t.stat().st_size < MAX_MUSIC_SIZE]
         if not tracks:
-            logger.warning("⚠️ No valid background music tracks found locally")
+            logger.warning("⚠️ No valid background music tracks found locally (50KB-5MB range)")
             return None
 
         track = random.choice(tracks)

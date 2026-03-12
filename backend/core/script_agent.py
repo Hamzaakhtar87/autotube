@@ -29,7 +29,7 @@ class ScriptAgent:
         else:
             self.target_duration = f"{SCRIPT_MIN_DURATION}-{SCRIPT_MAX_DURATION}"
             self.target_scenes = "5-7"
-            self.insights_count = "5-7"
+            self.insights_count = 5
     
     def parse_scenes(self, raw_script: str) -> list[dict]:
         """Parse raw script into scenes using dead-simple line-by-line matching. No regex."""
@@ -95,8 +95,7 @@ class ScriptAgent:
     def generate_script(self, topic: str) -> dict:
         """
         Generate a YouTube Short script using semantic chunking.
-        ENFORCES minimum duration (55-60s) programmatically — never trusts the LLM to count words.
-        Falls back to guaranteed 58-second hardcoded script if all else fails.
+        ENFORCES 55-60s duration in Python — trims if too long, falls back if too short.
         """
         logger.info(f"📝 [CHUNKED_MODE] Starting multi-phase generation for: {topic}")
         
@@ -105,7 +104,7 @@ class ScriptAgent:
             logger.info("🔗 [PHASE 1/3] Generating Hook...")
             hook_raw = model_manager.generate_content(self._get_hook_prompt(topic), task="script_hook")
             
-            # Phase 2: The Insights — this is where the bulk of the duration comes from
+            # Phase 2: The Insights — bulk of the duration
             logger.info("🧠 [PHASE 2/3] Generating Core Insights...")
             insights_raw = model_manager.generate_content(self._get_insights_prompt(topic, hook_raw), task="script_insights")
             
@@ -123,59 +122,33 @@ class ScriptAgent:
                 logger.error(f"Error parsing scenes: {e}")
                 scenes = []
             
+            logger.info(f"📄 Parsed {len(scenes)} scenes from LLM output")
+            
             if not scenes:
                 logger.error(f"Raw script that failed parsing:\n{raw_script}")
                 raise Exception("FAILED_TO_PARSE_CHUNKS")
 
-            # ===== DURATION ENFORCEMENT LOOP =====
+            # ===== DURATION ENFORCEMENT =====
             full_text = " ".join([s["speech"] for s in scenes])
             word_count = len(full_text.split())
             estimated_duration = word_count / 2.5
-            min_duration = SCRIPT_MIN_DURATION  # 55s from config.yml
+            min_duration = float(SCRIPT_MIN_DURATION)  # 55s
+            max_duration = float(SCRIPT_MAX_DURATION)  # 60s
             
-            max_retries = 3
-            retry = 0
-            while estimated_duration < min_duration and retry < max_retries:
-                deficit_seconds = min_duration - estimated_duration
-                deficit_words = int(deficit_seconds * 2.5)
-                logger.info(f"⚠️ Script too short ({estimated_duration:.1f}s). Need ~{deficit_words} more words. Requesting extra scenes (attempt {retry+1}/{max_retries})...")
-                
-                extra_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are a script writer. Continue adding MORE scenes to a video about: {topic}.
-The video currently has {len(scenes)} scenes but needs more content.
-Write 2-3 NEW scenes with fresh facts/insights. Each scene MUST have 2-3 long detailed sentences.
-<|eot_id|><|start_header_id|>user<|end_header_id|>
-Format:
-[SCENE]
-SPEECH: [New insight with 2-3 detailed sentences]
-VISUAL: [Visual descriptor]
-[/SCENE]
-<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
-                
-                try:
-                    extra_raw = model_manager.generate_content(extra_prompt, task="script_extend")
-                    logger.info(f"📄 Extension LLM output:\n{extra_raw[:300]}")
-                    extra_scenes = self.parse_scenes(extra_raw)
-                    logger.info(f"📄 Parsed {len(extra_scenes)} extra scenes")
-                    if extra_scenes:
-                        # Insert extra scenes BEFORE the last scene (outro)
-                        outro_scene = scenes[-1]
-                        scenes = scenes[:-1] + extra_scenes + [outro_scene]
-                        full_text = " ".join([s["speech"] for s in scenes])
-                        word_count = len(full_text.split())
-                        estimated_duration = word_count / 2.5
-                        logger.info(f"✅ Extended script: {len(scenes)} scenes ({estimated_duration:.1f}s)")
-                    else:
-                        logger.warning(f"⚠️ Extension returned 0 parseable scenes")
-                except Exception as ext_e:
-                    logger.warning(f"⚠️ Extension attempt failed: {ext_e}")
-                
-                retry += 1
+            logger.info(f"📏 Initial duration: {estimated_duration:.1f}s ({word_count} words, {len(scenes)} scenes)")
             
-            # ===== GUARANTEED FALLBACK =====
-            # If after all retries the script is STILL too short, use the hardcoded 58-second script
+            # --- TOO LONG: trim scenes from the middle until under max ---
+            while estimated_duration > max_duration and len(scenes) > 3:
+                mid = len(scenes) // 2
+                removed = scenes.pop(mid)
+                full_text = " ".join([s["speech"] for s in scenes])
+                word_count = len(full_text.split())
+                estimated_duration = word_count / 2.5
+                logger.info(f"✂️ Trimmed 1 scene (was over {max_duration}s). Now: {len(scenes)} scenes ({estimated_duration:.1f}s)")
+            
+            # --- TOO SHORT: use guaranteed fallback ---
             if estimated_duration < min_duration:
-                logger.warning(f"⚠️ Script still too short after {max_retries} retries ({estimated_duration:.1f}s). Using guaranteed fallback script.")
+                logger.warning(f"⚠️ Script too short ({estimated_duration:.1f}s < {min_duration}s). Using guaranteed fallback script.")
                 return self._get_fallback_script(topic)
             # ===== END ENFORCEMENT =====
             
@@ -236,23 +209,53 @@ VISUAL: [Visual descriptor]
         style_inst = self._get_style_instruction()
         if self.video_format == "long":
             scene_inst = f"Generate {self.insights_count} scenes of detailed insights (150-250 seconds total). STRICT LIMIT: Maximum 400 words globally across all scenes."
-        else:
-            scene_inst = f"Generate EXACTLY {self.insights_count} scenes. STRICT LENGTH REQUIREMENT: You MUST write exactly 2 long, highly detailed sentences of spoken dialogue for EVERY single scene. NEVER use word counts. Just write exactly 2 full sentences per scene. This guarantees the voiceover hits the 55-60 second algorithm mark perfectly."
-        
-        return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are a script writer. Continue this {'short' if self.video_format == 'short' else 'video'} about {topic}.
-The hook has ALREADY BEEN WRITTEN and will play first. DO NOT repeat it or paraphrase it.
-Hook (already recorded, do NOT include): "{hook[:100]}..."
+            return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are a script writer. Continue this video about {topic}.
+The hook has ALREADY BEEN WRITTEN and will play first. DO NOT repeat it.
+Hook (already recorded): "{hook[:100]}..."
 {style_inst}
 <|eot_id|><|start_header_id|>user<|end_header_id|>
 {scene_inst}
-START with a completely new point — NOT a restatement of the hook.
-Use contractions. Varied sentence lengths. 
 Format:
 [SCENE]
 SPEECH: [Insight]
-VISUAL: [Visual]
+VISUAL: [Short visual description, max 8 words]
 [/SCENE]
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+        
+        # SHORT format: provide a concrete example so the LLM knows EXACTLY what length we need
+        return f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are writing the body of a 60-second YouTube Short about: {topic}
+The hook and outro are already written separately. You ONLY write the middle {self.insights_count} body scenes.
+{style_inst}
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+Write EXACTLY {self.insights_count} scenes. Each scene MUST have 2-3 sentences of SPEECH (around 20-25 words per scene).
+VISUAL descriptions must be SHORT (max 8 words).
+
+Here is an example of the EXACT length and format I need:
+
+[SCENE]
+SPEECH: The ancient Egyptians built the pyramids over four thousand years ago. Most people don't realize they were already ancient ruins when Cleopatra was born.
+VISUAL: Pyramids at sunset aerial view
+[/SCENE]
+[SCENE]
+SPEECH: Think about that for a second. Two thousand years separated Cleopatra from the pyramids. She lived closer to the moon landing than to their construction.
+VISUAL: Historical timeline comparison graphic
+[/SCENE]
+[SCENE]
+SPEECH: And here's the wildest part. The Great Pyramid was the tallest structure on Earth for nearly four thousand years straight. Nothing even came close.
+VISUAL: Pyramid height comparison chart
+[/SCENE]
+[SCENE]
+SPEECH: When we think of ancient history, we compress thousands of years into one mental image. But the reality is these civilizations were as distant from each other as we are from Rome.
+VISUAL: World map with civilization markers
+[/SCENE]
+[SCENE]
+SPEECH: So next time someone says ancient history is boring, remind them that it's actually multiple completely different worlds stacked on top of each other.
+VISUAL: Layered civilizations animation
+[/SCENE]
+
+Now write {self.insights_count} scenes about {topic} in EXACTLY the same format and similar length. Do NOT copy the example — write original content.
 <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     def _get_outro_prompt(self, topic: str) -> str:
