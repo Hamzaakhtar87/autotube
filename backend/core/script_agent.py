@@ -32,57 +32,71 @@ class ScriptAgent:
             self.insights_count = "5-7"
     
     def parse_scenes(self, raw_script: str) -> list[dict]:
-        """Parse raw script into a list of scene dictionaries using robust regex to handle ANY LLM formatting variations."""
-        import re
+        """Parse raw script into scenes using dead-simple line-by-line matching. No regex."""
         scenes = []
         
-        # Strip all markdown bolding
-        clean_script = raw_script.replace("**", "")
+        # Strip markdown bolding
+        text = raw_script.replace("**", "").replace("*", "")
         
-        # Split aggressively by ANY opening [SCENE...] tag, handling [SCENE 1], [Scene 2], [SCENE], etc.
-        parts = re.split(r'\[SCENE.*?\]', clean_script, flags=re.IGNORECASE)
+        current_speech = ""
+        current_visual = ""
+        mode = None  # 'speech' or 'visual'
         
-        for part in parts:
-            if not part.strip():
+        for line in text.split("\n"):
+            stripped = line.strip()
+            upper = stripped.upper()
+            
+            # Skip scene tags entirely
+            if upper.startswith("[SCENE") or upper.startswith("[/SCENE"):
+                # When we hit a new [SCENE tag and we have a complete pair, save it
+                if upper.startswith("[SCENE") and not upper.startswith("[/SCENE"):
+                    if current_speech.strip() and current_visual.strip():
+                        scenes.append({"speech": current_speech.strip(), "visual": current_visual.strip()})
+                        current_speech = ""
+                        current_visual = ""
+                        mode = None
                 continue
-                
-            # Strip out any trailing closing tags like [/SCENE 1] or [/SCENE]
-            scene_content = re.sub(r'\[/SCENE.*?\]', '', part, flags=re.IGNORECASE).strip()
             
-            speech = ""
-            visual = ""
-            
-            # Use DOTALL to grab multi-line text between SPEECH: and VISUAL: tags (in any order)
-            speech_match = re.search(r'SPEECH\s*:(.*?)(?=VISUAL\s*:|$)', scene_content, re.IGNORECASE | re.DOTALL)
-            visual_match = re.search(r'VISUAL\s*:(.*?)(?=SPEECH\s*:|$)', scene_content, re.IGNORECASE | re.DOTALL)
-            
-            if speech_match:
-                speech = speech_match.group(1).strip().replace("\n", " ")
-            if visual_match:
-                visual = visual_match.group(1).strip().replace("\n", " ")
+            # Detect SPEECH: line
+            if upper.startswith("SPEECH:") or upper.startswith("SPEECH :"):
+                # Save previous pair if exists
+                if current_speech.strip() and current_visual.strip():
+                    scenes.append({"speech": current_speech.strip(), "visual": current_visual.strip()})
+                    current_speech = ""
+                    current_visual = ""
                 
-            if speech and visual:
-                scenes.append({"speech": speech, "visual": visual})
-                
-        # SUPER FALLBACK: If the LLM just hallucinated completely and didn't use [SCENE] tags AT ALL,
-        # we can still extract the speech and visual blocks out of thin air.
-        if len(scenes) < 2:
-            scenes = []
-            raw_parts = re.split(r'SPEECH\s*:', clean_script, flags=re.IGNORECASE)
-            for p in raw_parts[1:]:
-                v_split = re.split(r'VISUAL\s*:', p, flags=re.IGNORECASE)
-                if len(v_split) >= 2:
-                    speech = v_split[0].strip().replace("\n", " ")
-                    visual = v_split[1].strip().replace("\n", " ")
-                    if speech and visual:
-                        scenes.append({"speech": speech, "visual": visual})
-
+                mode = "speech"
+                # Extract content after "SPEECH:"
+                idx = stripped.find(":")
+                if idx >= 0:
+                    current_speech = stripped[idx+1:].strip() + " "
+                continue
+            
+            # Detect VISUAL: line
+            if upper.startswith("VISUAL:") or upper.startswith("VISUAL :"):
+                mode = "visual"
+                idx = stripped.find(":")
+                if idx >= 0:
+                    current_visual = stripped[idx+1:].strip() + " "
+                continue
+            
+            # Continuation line — append to current mode
+            if stripped and mode == "speech":
+                current_speech += stripped + " "
+            elif stripped and mode == "visual":
+                current_visual += stripped + " "
+        
+        # Don't forget the last pair
+        if current_speech.strip() and current_visual.strip():
+            scenes.append({"speech": current_speech.strip(), "visual": current_visual.strip()})
+        
         return scenes
 
     def generate_script(self, topic: str) -> dict:
         """
         Generate a YouTube Short script using semantic chunking.
         ENFORCES minimum duration (55-60s) programmatically — never trusts the LLM to count words.
+        Falls back to guaranteed 58-second hardcoded script if all else fails.
         """
         logger.info(f"📝 [CHUNKED_MODE] Starting multi-phase generation for: {topic}")
         
@@ -101,6 +115,8 @@ class ScriptAgent:
             
             # Combine and parse
             raw_script = f"{hook_raw}\n{insights_raw}\n{outro_raw}"
+            logger.info(f"📄 Raw LLM output ({len(raw_script)} chars):\n{raw_script[:500]}")
+            
             try:
                 scenes = self.parse_scenes(raw_script)
             except Exception as e:
@@ -112,7 +128,6 @@ class ScriptAgent:
                 raise Exception("FAILED_TO_PARSE_CHUNKS")
 
             # ===== DURATION ENFORCEMENT LOOP =====
-            # Calculate current duration. If too short, request MORE scenes and append them.
             full_text = " ".join([s["speech"] for s in scenes])
             word_count = len(full_text.split())
             estimated_duration = word_count / 2.5
@@ -139,7 +154,9 @@ VISUAL: [Visual descriptor]
                 
                 try:
                     extra_raw = model_manager.generate_content(extra_prompt, task="script_extend")
+                    logger.info(f"📄 Extension LLM output:\n{extra_raw[:300]}")
                     extra_scenes = self.parse_scenes(extra_raw)
+                    logger.info(f"📄 Parsed {len(extra_scenes)} extra scenes")
                     if extra_scenes:
                         # Insert extra scenes BEFORE the last scene (outro)
                         outro_scene = scenes[-1]
@@ -148,11 +165,19 @@ VISUAL: [Visual descriptor]
                         word_count = len(full_text.split())
                         estimated_duration = word_count / 2.5
                         logger.info(f"✅ Extended script: {len(scenes)} scenes ({estimated_duration:.1f}s)")
+                    else:
+                        logger.warning(f"⚠️ Extension returned 0 parseable scenes")
                 except Exception as ext_e:
                     logger.warning(f"⚠️ Extension attempt failed: {ext_e}")
                 
                 retry += 1
-            # ===== END ENFORCEMENT LOOP =====
+            
+            # ===== GUARANTEED FALLBACK =====
+            # If after all retries the script is STILL too short, use the hardcoded 58-second script
+            if estimated_duration < min_duration:
+                logger.warning(f"⚠️ Script still too short after {max_retries} retries ({estimated_duration:.1f}s). Using guaranteed fallback script.")
+                return self._get_fallback_script(topic)
+            # ===== END ENFORCEMENT =====
             
             logger.info(f"✅ [QUALITY_MODE: FULL] Chunked script ready: {len(scenes)} scenes ({estimated_duration:.1f}s)")
             
