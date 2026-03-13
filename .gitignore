@@ -61,3 +61,4 @@ Thumbs.db
 # ─── Agent/AI Config (project-local only) ───
 .agent/
 PRODUCTION_SECRETS.md
+oracle ssh keys/
