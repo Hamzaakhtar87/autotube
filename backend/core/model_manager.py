@@ -80,33 +80,16 @@ class ModelManager:
             self._last_call_time = time.time()
 
     def generate_content(self, prompt: str, task: str = "general") -> str:
-        """Generate text: Gemini Primary → Gemini Fallback → Groq → Error."""
+        """Generate text: Groq direct (fast, no rate limit delays).
+        
+        NOTE: Gemini cascade disabled for Render free tier performance.
+        Gemini's 12s rate-limit wait × 5+ calls = 60s+ of pure waiting per video.
+        Groq has 14,400 req/day free tier and responds in 2-5 seconds.
+        Re-enable Gemini cascade when migrating to Oracle Cloud.
+        """
         errors = []
 
-        # Try Gemini models first (best quality)
-        if self.gemini_client:
-            # Try primary
-            try:
-                self._wait_for_rate_limit()
-                result = self._call_gemini(prompt, GEMINI_PRIMARY, task)
-                if result:
-                    return result
-            except Exception as e:
-                errors.append(f"Gemini({GEMINI_PRIMARY}): {e}")
-                logger.warning(f"⚠️ Gemini primary failed, trying fallback...")
-
-            # Try fallback
-            try:
-                if self.gemini_client:
-                    self._wait_for_rate_limit()
-                    result = self._call_gemini(prompt, GEMINI_FALLBACK, task)
-                    if result:
-                        return result
-            except Exception as e:
-                errors.append(f"Gemini({GEMINI_FALLBACK}): {e}")
-                logger.warning(f"⚠️ Gemini fallback failed, cascading to Groq...")
-
-        # Groq fallback (no rate limit issues — 14,400 RPD)
+        # Groq direct (fast, reliable, 14,400 RPD free tier)
         if self.groq_client:
             try:
                 result = self._call_groq(prompt, task)
@@ -115,6 +98,16 @@ class ModelManager:
             except Exception as e:
                 errors.append(f"Groq: {e}")
                 logger.warning(f"⚠️ Groq failed: {e}")
+
+        # Only try Gemini if Groq is completely down
+        if self.gemini_client:
+            try:
+                self._wait_for_rate_limit()
+                result = self._call_gemini(prompt, GEMINI_PRIMARY, task)
+                if result:
+                    return result
+            except Exception as e:
+                errors.append(f"Gemini({GEMINI_PRIMARY}): {e}")
 
         logger.error(f"❌ All LLM providers failed: {errors}")
         raise Exception("LLM_SERVICE_UNAVAILABLE")
