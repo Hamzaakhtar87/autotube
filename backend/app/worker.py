@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 from celery import Celery
+from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.models.models import Job, JobLog, JobStatus, User
@@ -60,7 +61,7 @@ class DatabaseLogHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
-@celery.task(bind=True)
+@celery.task(bind=True, soft_time_limit=480, time_limit=600)  # 8min soft, 10min hard kill
 def run_batch_task(self, job_id: int, test_mode: bool = False):
     """
     Celery task that runs the WeeklyBatchAgent.
@@ -178,6 +179,13 @@ def run_batch_task(self, job_id: int, test_mode: bool = False):
             if user_email: email_service.send_job_completion(user_email, job_id, "failed")
             root_logger.error("❌ Job reported failure")
 
+    except SoftTimeLimitExceeded:
+        job.status = JobStatus.FAILED
+        root_logger.error("❌ Job exceeded time limit (8 minutes) — force stopped to protect server health")
+        try:
+            if 'user_email' in locals() and user_email: 
+                email_service.send_job_completion(user_email, job_id, "failed")
+        except: pass
     except Exception as e:
         job.status = JobStatus.FAILED
         try:

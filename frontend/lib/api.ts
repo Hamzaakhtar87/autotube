@@ -6,6 +6,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 export const api = axios.create({
     baseURL: API_URL,
     withCredentials: true, // Send httpOnly cookies (refresh_token)
+    timeout: 15000, // 15 second timeout — surfaces errors instead of infinite spinners
 })
 
 // Attach access token to every request
