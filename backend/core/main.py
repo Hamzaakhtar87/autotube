@@ -167,6 +167,22 @@ class WeeklyBatchAgent:
             logger.error(f"❌ Error generating video {video_number}: {e}", exc_info=True)
             raise
     
+    def _cleanup_old_files(self):
+        """Delete videos older than 24 hours from output directory to save space"""
+        import time
+        now = time.time()
+        count = 0
+        try:
+            for f in OUTPUT_DIR.glob("*.mp4"):
+                if f.is_file():
+                    if os.stat(f).st_mtime < now - 86400: # 86400s = 24h
+                        f.unlink()
+                        count += 1
+            if count > 0:
+                logger.info(f"🧹 Privacy Agent: Permanently deleted {count} video(s) older than 24 hours.")
+        except Exception as e:
+            logger.error(f"Failed to cleanup old videos: {e}")
+            
     def run_weekly_batch(self, limit: int = None):
         """
         Main method: Generate videos and upload in batch
@@ -175,6 +191,9 @@ class WeeklyBatchAgent:
         start_time = datetime.now()
         
         target_count = limit if limit else VIDEOS_PER_BATCH
+        
+        # Enforce 24 hour deletion policy automatically when batch runs
+        self._cleanup_old_files()
         
         logger.info("\n" + "🌟"*40)
         logger.info("BATCH GENERATION - STARTING")

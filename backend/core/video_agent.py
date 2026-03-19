@@ -277,99 +277,107 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         logger.info(f"🎬 Creating high-retention video (Karaoke)...")
         
         output_path = OUTPUT_DIR / output_filename
-        subtitle_path = self._create_karaoke_subtitles(script, duration, audio_path)
+        subtitle_path = None
+        clips = []
+        music_track = None
         
-        # 1. Prepare visual background
-        bg_input = []
-        filter_complex = ""
-        
-        if scenes:
-            clips = self._prepare_scene_clips(scenes, duration)
-            if clips:
-                # Concatenate clips
-                for i, clip in enumerate(clips):
-                    bg_input.extend(['-i', str(clip)])
-                
-                filter_complex = "".join([f"[{i}:v]" for i in range(len(clips))])
-                filter_complex += f"concat=n={len(clips)}:v=1:a=0[bg];"
+        try:
+            subtitle_path = self._create_karaoke_subtitles(script, duration, audio_path)
+            
+            # 1. Prepare visual background
+            bg_input = []
+            filter_complex = ""
+            
+            if scenes:
+                clips = self._prepare_scene_clips(scenes, duration)
+                if clips:
+                    # Concatenate clips
+                    for i, clip in enumerate(clips):
+                        bg_input.extend(['-i', str(clip)])
+                    
+                    filter_complex = "".join([f"[{i}:v]" for i in range(len(clips))])
+                    filter_complex += f"concat=n={len(clips)}:v=1:a=0[bg];"
+                else:
+                    bg_input = ['-stream_loop', '-1', '-i', str(BACKGROUND_VIDEO_PATH)]
+                    filter_complex = "[0:v]copy[bg];"
             else:
                 bg_input = ['-stream_loop', '-1', '-i', str(BACKGROUND_VIDEO_PATH)]
                 filter_complex = "[0:v]copy[bg];"
-        else:
-            bg_input = ['-stream_loop', '-1', '-i', str(BACKGROUND_VIDEO_PATH)]
-            filter_complex = "[0:v]copy[bg];"
 
-        # 2. Add audio (voiceover + background music)
-        input_count = bg_input.count('-i')
-        audio_idx = input_count
-        bg_input.extend(['-i', str(audio_path)])
+            # 2. Add audio (voiceover + background music)
+            input_count = bg_input.count('-i')
+            audio_idx = input_count
+            bg_input.extend(['-i', str(audio_path)])
 
-        # 3. Add background music track (looped to cover full video)
-        music_track = self._select_background_music(niche)
-        music_idx = None
-        if music_track:
-            music_idx = audio_idx + 1
-            bg_input.extend(['-stream_loop', '-1', '-i', str(music_track)])
-            logger.info(f"🎵 Background music: {music_track.name}")
-        else:
-            logger.info("🔇 Background music disabled by user preference or not found")
+            # 3. Add background music track (looped to cover full video)
+            music_track = self._select_background_music(niche)
+            music_idx = None
+            if music_track:
+                music_idx = audio_idx + 1
+                bg_input.extend(['-stream_loop', '-1', '-i', str(music_track)])
+                logger.info(f"🎵 Background music: {music_track.name}")
+            else:
+                logger.info("🔇 Background music disabled by user preference or not found")
 
-        # 4. Build filter: video + subtitles + audio mix
-        ass_filter_path = str(subtitle_path).replace(':', '\\:')
-        final_filter = filter_complex + f"[bg]ass={ass_filter_path}[final]"
+            # 4. Build filter: video + subtitles + audio mix
+            ass_filter_path = str(subtitle_path).replace(':', '\\:')
+            final_filter = filter_complex + f"[bg]ass={ass_filter_path}[final]"
 
-        # Audio: mix voiceover (full volume) + background music (subtle)
-        if music_idx is not None:
-            audio_filter = (
-                f"[{audio_idx}:a]volume=2.0[voice];"
-                f"[{music_idx}:a]volume={self.bg_music_volume * 2},"
-                f"afade=t=in:d=2,afade=t=out:st={max(0, duration-3)}:d=3[music];"
-                f"[voice][music]amix=inputs=2:duration=first[aout]"
-            )
-            final_filter += f";{audio_filter}"
-            audio_map = ['-map', '[aout]']
-        else:
-            audio_map = ['-map', f'{audio_idx}:a']
+            # Audio: mix voiceover (full volume) + background music (subtle)
+            if music_idx is not None:
+                audio_filter = (
+                    f"[{audio_idx}:a]volume=2.0[voice];"
+                    f"[{music_idx}:a]volume={self.bg_music_volume * 2},"
+                    f"afade=t=in:d=2,afade=t=out:st={max(0, duration-3)}:d=3[music];"
+                    f"[voice][music]amix=inputs=2:duration=first[aout]"
+                )
+                final_filter += f";{audio_filter}"
+                audio_map = ['-map', '[aout]']
+            else:
+                audio_map = ['-map', f'{audio_idx}:a']
 
-        cmd = [
-            'ffmpeg', *bg_input,
-            '-filter_complex', final_filter,
-            '-map', '[final]',
-            *audio_map,
-            '-t', str(duration),
-            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', str(VIDEO_CRF),
-            '-b:v', VIDEO_BITRATE, '-c:a', 'aac', '-b:a', AUDIO_BITRATE,
-            '-threads', '1',
-            '-pix_fmt', 'yuv420p', '-y', str(output_path)
-        ]
+            cmd = [
+                'ffmpeg', *bg_input,
+                '-filter_complex', final_filter,
+                '-map', '[final]',
+                *audio_map,
+                '-t', str(duration),
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', str(VIDEO_CRF),
+                '-b:v', VIDEO_BITRATE, '-c:a', 'aac', '-b:a', AUDIO_BITRATE,
+                '-threads', '1',
+                '-pix_fmt', 'yuv420p', '-y', str(output_path)
+            ]
 
-        try:
             logger.info("🎬 Rendering final video with background music + subtitles...")
             subprocess.run(cmd, check=True)
+            return output_path
             
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg render error: {e}")
+            raise
+            
+        finally:
             # --- CLEANUP PHASE ---
             logger.info("🧹 Sweeping temporary visual files to free up disk space...")
             try:
                 if subtitle_path and subtitle_path.exists():
                     subtitle_path.unlink()
+                if music_track and music_track.exists():
+                    music_track.unlink()
                 if scenes and clips:
                     for clip in clips:
-                        if Path(clip).exists():
+                        if clip and Path(clip).exists():
                             Path(clip).unlink()
                         
-                        # Alsom delete the original downloaded asset (before scale/crop)
-                        # We can derive the original from the processed clip filename
-                        orig_clip = Path(clip).with_name(Path(clip).name.replace("processed_", ""))
-                        if orig_clip.exists():
-                            orig_clip.unlink()
+                        # Also delete the original downloaded asset (before scale/crop)
+                        if clip:
+                            orig_clip = Path(clip).with_name(Path(clip).name.replace("processed_", ""))
+                            if orig_clip.exists():
+                                orig_clip.unlink()
                 logger.info("🧹 Visual cache cleared successfully.")
             except Exception as e:
                 logger.warning(f"Failed to cleanup some temp files: {e}")
-                
-            return output_path
-        except subprocess.CalledProcessError as e:
-            logger.error(f"FFmpeg render error: {e}")
-            raise
+
 
     def _select_background_music(self, niche: str = "mixed") -> str:
         """Pick background music based on user setting and video niche."""

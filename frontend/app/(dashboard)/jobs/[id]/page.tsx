@@ -40,6 +40,40 @@ export default function JobDetailPage() {
     const summaryScrollRef = useRef<HTMLDivElement>(null)
     const { toast } = useToast()
     const [showLogs, setShowLogs] = useState(false)
+    const [isDownloading, setIsDownloading] = useState(false)
+
+    const handleDownload = async (url: string, filename: string) => {
+        try {
+            setIsDownloading(true)
+            toast({ title: "Starting Download", description: "Preparing your video..." })
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'ngrok-skip-browser-warning': '69420'
+                }
+            })
+            
+            if (!response.ok) throw new Error("Network response was not ok")
+            
+            const blob = await response.blob()
+            const downloadUrl = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = downloadUrl
+            link.setAttribute('download', filename)
+            document.body.appendChild(link)
+            link.click()
+            link.parentNode?.removeChild(link)
+            window.URL.revokeObjectURL(downloadUrl)
+            
+            toast({ title: "Success", description: "Download complete!" })
+        } catch (error) {
+            console.error("Download failed:", error)
+            toast({ title: "Error", description: "Download failed. Please try again.", variant: "destructive" })
+        } finally {
+            setIsDownloading(false)
+        }
+    }
 
     const { data: job, isLoading } = useQuery({
         queryKey: ["job", id],
@@ -242,12 +276,17 @@ export default function JobDetailPage() {
                                     if (filename) {
                                         const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://autotube-api-oave.onrender.com'}/output/${filename}`;
                                         return (
-                                            <div className="mt-4">
-                                                <a href={downloadUrl} target="_blank" rel="noreferrer" download>
-                                                    <Button className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white">
-                                                        ⬇️ Download Video
-                                                    </Button>
-                                                </a>
+                                            <div className="mt-4 flex flex-col space-y-2">
+                                                <Button 
+                                                    onClick={() => handleDownload(downloadUrl, filename)}
+                                                    disabled={isDownloading}
+                                                    className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
+                                                >
+                                                    {isDownloading ? "⏳ Downloading..." : "⬇️ Download Video"}
+                                                </Button>
+                                                <p className="text-xs text-muted-foreground max-w-sm">
+                                                    ⚠️ Generated videos are available to download for <strong className="text-orange-500">24 hours</strong> only. After that, they are permanently deleted from our servers to protect your privacy and save space.
+                                                </p>
                                             </div>
                                         )
                                     }
