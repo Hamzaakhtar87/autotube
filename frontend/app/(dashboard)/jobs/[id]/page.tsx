@@ -42,37 +42,23 @@ export default function JobDetailPage() {
     const [showLogs, setShowLogs] = useState(false)
     const [isDownloading, setIsDownloading] = useState(false)
 
-    const handleDownload = async (url: string, filename: string) => {
-        try {
-            setIsDownloading(true)
-            toast({ title: "Starting Download", description: "Preparing your video..." })
-            
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'ngrok-skip-browser-warning': '69420'
-                }
-            })
-            
-            if (!response.ok) throw new Error("Network response was not ok")
-            
-            const blob = await response.blob()
-            const downloadUrl = window.URL.createObjectURL(blob)
-            const link = document.createElement('a')
-            link.href = downloadUrl
-            link.setAttribute('download', filename)
-            document.body.appendChild(link)
-            link.click()
-            link.parentNode?.removeChild(link)
-            window.URL.revokeObjectURL(downloadUrl)
-            
-            toast({ title: "Success", description: "Download complete!" })
-        } catch (error) {
-            console.error("Download failed:", error)
-            toast({ title: "Error", description: "Download failed. Please try again.", variant: "destructive" })
-        } finally {
-            setIsDownloading(false)
-        }
+    const handleDownload = (url: string, filename: string) => {
+        setIsDownloading(true)
+        toast({ title: "Starting Download", description: "Your video wrapper is ready. Saving..." })
+        
+        // Pass the download securely through the Next.js proxy route to bypass Ngrok interstitial implicitly
+        // and trigger immediate native browser download status
+        const proxyUrl = `/api/download?url=${encodeURIComponent(url)}`
+        
+        const link = document.createElement("a")
+        link.href = proxyUrl
+        link.setAttribute("download", filename) // attempt native download
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        
+        // Allow the button to be clicked again immediately since browser handles the download stream natively now
+        setTimeout(() => setIsDownloading(false), 2000)
     }
 
     const { data: job, isLoading } = useQuery({
