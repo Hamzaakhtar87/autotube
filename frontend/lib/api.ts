@@ -7,6 +7,9 @@ export const api = axios.create({
     baseURL: API_URL,
     withCredentials: true, // Send httpOnly cookies (refresh_token)
     timeout: 15000, // 15 second timeout — surfaces errors instead of infinite spinners
+    headers: {
+        "ngrok-skip-browser-warning": "69420"
+    }
 })
 
 // Attach access token to every request
