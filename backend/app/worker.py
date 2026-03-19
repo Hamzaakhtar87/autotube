@@ -61,7 +61,7 @@ class DatabaseLogHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
-@celery.task(bind=True, soft_time_limit=480, time_limit=600)  # 8min soft, 10min hard kill
+@celery.task(bind=True, soft_time_limit=1800, time_limit=2000)  # 30min soft, 33min hard kill
 def run_batch_task(self, job_id: int, test_mode: bool = False):
     """
     Celery task that runs the WeeklyBatchAgent.
