@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 
-# In-memory store for webhook results (Redis in production)
+# In-memory store for webhook results (persist in the DB in production)
 _webhook_results: dict[str, dict] = {}
 
 

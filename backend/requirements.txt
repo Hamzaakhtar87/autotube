@@ -8,10 +8,6 @@ sqlalchemy==2.0.25
 alembic==1.13.1
 psycopg2-binary==2.9.9
 
-# ─── Background Tasks ───
-celery==5.3.6
-redis==5.0.1
-
 # ─── Auth ───
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4

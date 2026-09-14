@@ -1,0 +1,45 @@
+# Supabase free-tier projects auto-pause after 7 days without activity.
+# This runs a real SELECT against the database every 5 days (max gap across
+# month boundaries is also 5 days) so the project never goes idle.
+#
+# Requires repo secrets: SUPABASE_URL, SUPABASE_ANON_KEY
+# Reads the public._keepalive table (RLS policy allows anon SELECT).
+#
+# Note: GitHub disables scheduled workflows in repos with no activity for 60 days.
+name: Supabase Keepalive
+
+on:
+  schedule:
+    - cron: "0 9 */5 * *"   # 09:00 UTC on days 1,6,11,16,21,26,31
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query _keepalive table
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY secrets are not set"
+            exit 1
+          fi
+          status=$(curl -sS -o /tmp/body.json -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/_keepalive?select=id,pinged_at&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "HTTP $status"
+          cat /tmp/body.json; echo
+          if [ "$status" != "200" ]; then
+            echo "::error::Keepalive query failed with HTTP $status"
+            exit 1
+          fi
+          echo "Supabase project is awake."

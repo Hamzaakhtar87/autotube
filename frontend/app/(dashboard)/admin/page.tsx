@@ -116,12 +116,12 @@ export default function AdminDashboardPage() {
                 <Card className="bg-slate-900 text-slate-100 border-none shadow-md">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
-                            <Database className="h-4 w-4 text-red-500" /> Redis (Celery)
+                            <Server className="h-4 w-4" /> Job Runner (GitHub Actions)
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className={`text-xl font-bold ${health?.redis === "connected" ? "text-green-400" : "text-red-400"}`}>
-                            {health?.redis.toUpperCase()}
+                        <div className={`text-xl font-bold ${health?.job_runner === "configured" ? "text-green-400" : "text-red-400"}`}>
+                            {health?.job_runner?.toUpperCase() ?? "—"}
                         </div>
                     </CardContent>
                 </Card>

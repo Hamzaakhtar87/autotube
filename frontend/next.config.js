@@ -1,9 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Standalone output — bundles only necessary files for production
-    // Reduces container size from ~1GB to ~100MB
-    output: 'standalone',
-
     // Enable SWC minification (faster than Terser)
     swcMinify: true,
 

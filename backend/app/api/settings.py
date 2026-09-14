@@ -13,10 +13,8 @@ from app.services.auth_service import get_current_user, oauth2_scheme, decode_ac
 
 router = APIRouter()
 
-# Auto-detect: Docker uses /app/core, local dev uses relative path
-_DOCKER_CORE = "/app/core"
-_LOCAL_CORE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "core"))
-CORE_DIR = _DOCKER_CORE if os.path.isdir(_DOCKER_CORE) else _LOCAL_CORE
+# backend/core — the video pipeline package, sibling of backend/app
+CORE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "core"))
 SECRETS_FILE = os.path.join(CORE_DIR, "client_secrets.json")
 # CREDENTIALS_FILE is no longer used globally; credentials are stored in DB per user.
 

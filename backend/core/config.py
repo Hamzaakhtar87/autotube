@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env as DEFAULTS only — Docker-injected env vars take precedence
+# Load .env as DEFAULTS only — real environment variables take precedence
 load_dotenv(Path(__file__).parent / ".env", override=False)
 
 BASE_DIR = Path(__file__).parent

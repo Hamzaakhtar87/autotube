@@ -13,7 +13,7 @@ Our target is the **20 to 35-year-old Hustler** trying to build a passive income
 ### Tactic 1: Build-in-Public (X / Twitter)
 As your technical co-founder, I strongly recommend you launch this as an "Indie Hacker."
 * **The Hook:** *"I built an AI that runs my faceless YouTube channels while I sleep. Here's exactly how it chains Gemini 1.5 with Pexels to print passive income."*
-* **The Action:** Post architecture diagrams, time-lapses of the Celery worker rendering 5 videos simultaneously, and actual YouTube analytics screenshots of views rolling in from automated uploads.
+* **The Action:** Post architecture diagrams, time-lapses of a GitHub Actions run rendering a batch of videos, and actual YouTube analytics screenshots of views rolling in from automated uploads.
 * **The Call-to-Action:** Reply with "AUTOMATE" and I'll DM you the free beta access link.
 
 ### Tactic 2: Niche Reddit Infiltration

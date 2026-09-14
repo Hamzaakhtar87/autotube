@@ -281,14 +281,9 @@ def admin_health(
     except Exception:
         pass
 
-    # Redis check
-    redis_ok = False
-    try:
-        from app.worker import celery
-        celery.control.ping(timeout=2)
-        redis_ok = True
-    except Exception:
-        pass
+    # Job runner check: jobs run on GitHub Actions via repository_dispatch,
+    # so "healthy" means the dispatch credentials are configured.
+    from app.services.dispatch import is_configured as dispatch_configured
 
     # System resources
     cpu = psutil.cpu_percent(interval=0.5)
@@ -296,7 +291,7 @@ def admin_health(
 
     return {
         "database": "connected" if db_ok else "disconnected",
-        "redis": "connected" if redis_ok else "disconnected",
+        "job_runner": "configured" if dispatch_configured() else "unconfigured",
         "cpu_percent": cpu,
         "memory_used_percent": memory.percent,
         "memory_available_gb": round(memory.available / (1024 ** 3), 2),

@@ -92,10 +92,9 @@ app.include_router(competitors.router)
 
 # Mount local output directory so generate_only videos can be downloaded from the Dashboard
 from fastapi.staticfiles import StaticFiles
-OUTPUT_DIR = "/app/core/output_v2"
-if not os.path.exists(OUTPUT_DIR):
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
+from app.core.config import OUTPUT_DIR
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
 
 @app.get("/")
 def root():

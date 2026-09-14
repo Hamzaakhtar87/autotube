@@ -55,7 +55,7 @@ def trigger_sync(
     # Or just run it synchronously for simple MVP if it's fast enough.
     # For now, let's run it synchronously to catch auth errors immediately 
     # since we don't have a complex worker setup for this specific task yet.
-    # If it's slow, we'll move to Celery.
+    # If it's slow, move it into the GitHub Actions job runner.
     
     try:
         sync_channel_stats(db, current_user)

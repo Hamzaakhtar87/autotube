@@ -7,11 +7,6 @@ import uuid
 from unittest.mock import patch, MagicMock
 
 UNIQUE = uuid.uuid4().hex[:8]
-JOB_USER = {
-    "email": f"jobuser_{UNIQUE}@test.autotube.com",
-    "password": "SecurePass123!",
-    "full_name": "Job Test User"
-}
 
 
 class TestJobsAPI:
@@ -19,19 +14,24 @@ class TestJobsAPI:
 
     @pytest.fixture(autouse=True)
     def setup_user(self, client):
-        """Register and login a test user for job tests."""
-        client.post("/auth/register", json=JOB_USER)
+        """Register and login a fresh user per test — free tier allows 1 active job,
+        so tests that create jobs must not share a user."""
+        job_user = {
+            "email": f"jobuser_{uuid.uuid4().hex[:8]}@test.autotube.com",
+            "password": "SecurePass123!",
+            "full_name": "Job Test User"
+        }
+        client.post("/auth/register", json=job_user)
         res = client.post("/auth/login", data={
-            "username": JOB_USER["email"],
-            "password": JOB_USER["password"]
+            "username": job_user["email"],
+            "password": job_user["password"]
         })
         self.token = res.json()["access_token"]
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
-    @patch("app.api.jobs.run_batch_task")
-    def test_create_job(self, mock_task, client):
-        """Should create a new job."""
-        mock_task.delay.return_value = MagicMock(id="mock-celery-task-id")
+    @patch("app.api.jobs.dispatch_job")
+    def test_create_job(self, mock_dispatch, client):
+        """Should create a new job and dispatch it to GitHub Actions."""
         res = client.post("/jobs", json={
             "test_mode": True,
             "videos_count": 1
@@ -40,7 +40,8 @@ class TestJobsAPI:
         data = res.json()
         assert data["status"] == "pending"
         assert "id" in data
-        mock_task.delay.assert_called_once()
+        mock_dispatch.assert_called_once()
+        assert mock_dispatch.call_args.args[0] == data["id"]
 
     def test_list_jobs(self, client):
         """Should list user's jobs."""
@@ -49,10 +50,9 @@ class TestJobsAPI:
         data = res.json()
         assert isinstance(data, list)
 
-    @patch("app.api.jobs.run_batch_task")
-    def test_get_job_detail(self, mock_task, client):
+    @patch("app.api.jobs.dispatch_job")
+    def test_get_job_detail(self, mock_dispatch, client):
         """Should get details for a specific job."""
-        mock_task.delay.return_value = MagicMock(id="mock-celery-task-id")
         create_res = client.post("/jobs", json={
             "test_mode": True,
             "videos_count": 1
@@ -64,6 +64,16 @@ class TestJobsAPI:
         data = res.json()
         assert data["id"] == job_id
         assert "logs" in data
+
+    @patch("app.api.jobs.dispatch_job")
+    def test_create_job_dispatch_failure_marks_job_failed(self, mock_dispatch, client):
+        """A dispatch failure must surface as 503 and leave the job FAILED, not silently pending."""
+        from app.services.dispatch import DispatchError
+        mock_dispatch.side_effect = DispatchError("GITHUB_REPO / GITHUB_DISPATCH_TOKEN are not configured")
+        res = client.post("/jobs", json={"test_mode": True, "videos_count": 1}, headers=self.headers)
+        assert res.status_code == 503
+        jobs = client.get("/jobs", headers=self.headers).json()
+        assert jobs[0]["status"] == "failed"
 
     def test_get_nonexistent_job(self, client):
         """Should return 404 for non-existent job."""

@@ -1,0 +1,34 @@
+# Phase 0 skeleton: proves the repository_dispatch trigger path end to end.
+# The real pipeline (script -> video -> assemble -> upload to R2) lands here in Phase 6.
+#
+# Fire it with:
+#   curl -X POST https://api.github.com/repos/Hamzaakhtar87/autotube/dispatches \
+#     -H "Accept: application/vnd.github+json" \
+#     -H "Authorization: Bearer $GITHUB_TOKEN" \
+#     -d '{"event_type":"run-job","client_payload":{"job_id":"test-123"}}'
+name: Run Job
+
+on:
+  repository_dispatch:
+    types: [run-job]
+
+permissions:
+  contents: read
+
+jobs:
+  echo-payload:
+    name: Echo dispatch payload
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Echo payload
+        env:
+          EVENT_TYPE: ${{ github.event.action }}
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+        run: |
+          echo "event_type: $EVENT_TYPE"
+          echo "job_id:     ${JOB_ID:-<none>}"
+          echo "client_payload:"
+          echo "$PAYLOAD"
+          exit 0

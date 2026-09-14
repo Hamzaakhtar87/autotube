@@ -13,7 +13,7 @@ import logging
 from app.db import get_db
 from app.models.models import User, Video, Job
 from app.services.auth_service import get_current_user
-from config import OUTPUT_DIR
+from app.core.config import OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/videos", tags=["videos"])

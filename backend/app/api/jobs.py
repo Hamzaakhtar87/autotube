@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app.models.models import Job, JobStatus, JobLog, User
-from app.worker import run_batch_task
+from app.services.dispatch import dispatch_job, DispatchError
 from app.services.auth_service import (
     get_current_user,
     get_current_user_optional,
@@ -98,8 +98,8 @@ def create_job(
             detail=f"Monthly video limit reached ({tier_limit} videos). Upgrade your plan to generate more videos."
         )
 
-    # SECURE: Prevent Celery Queue Exhaustion (Exploit 10)
-    # Ensure users cannot spam the broker with thousands of background tasks
+    # SECURE: cap concurrent jobs per user so nobody can burn the GitHub Actions
+    # minutes budget with thousands of dispatches
     active_jobs = db.query(Job).filter(
         Job.user_id == current_user.id,
         Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING])
@@ -138,21 +138,19 @@ def create_job(
     db.commit()
     db.refresh(new_job)
     
-    # Trigger Celery task
+    # Hand the job to GitHub Actions (repository_dispatch -> .github/workflows/run-job.yml)
     try:
-        task = run_batch_task.delay(new_job.id, effective_test_mode)
-        new_job.celery_task_id = task.id
+        dispatch_job(new_job.id, {"test_mode": effective_test_mode})
+        db.add(JobLog(job_id=new_job.id, level="INFO", message="📨 Job dispatched to GitHub Actions"))
         db.commit()
-    except Exception as e:
-        # Redis/Celery not available — job is created but can't be dispatched
-        from app.models.models import JobLog
-        log = JobLog(job_id=new_job.id, level="ERROR", message=f"⚠️ Worker dispatch failed: {str(e)[:200]}. Is Redis/Celery running?")
-        db.add(log)
+    except DispatchError as e:
+        # Job row exists but no runner will pick it up — fail loudly, not silently
+        db.add(JobLog(job_id=new_job.id, level="ERROR", message=f"⚠️ Dispatch failed: {str(e)[:200]}"))
         new_job.status = JobStatus.FAILED
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Video worker is not available. Please ensure Redis and Celery are running."
+            detail="Job runner is not available. Check GITHUB_REPO / GITHUB_DISPATCH_TOKEN configuration."
         )
     
     # Increment usage (reserve quota)
@@ -191,12 +189,8 @@ def stop_job(
     if job.status not in [JobStatus.RUNNING, JobStatus.PENDING]:
         return {"message": "Job is not running"}
 
-    # Revoke Celery task
-    if job.celery_task_id:
-        from app.worker import celery
-        celery.control.revoke(job.celery_task_id, terminate=True, signal='SIGKILL')
-        
-    # Update status
+    # There is no queue to revoke from: the Actions run reads job.status from
+    # the DB between stages and exits when it sees a stopped job.
     job.status = JobStatus.FAILED
     new_log = JobLog(job_id=job.id, level="ERROR", message="🚫 Job stopped by user")
     db.add(new_log)

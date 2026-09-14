@@ -1,7 +1,8 @@
 """
 Test Configuration
 Uses a separate test database to avoid polluting production data.
-Connects to the Docker Postgres on localhost:5440.
+Set TEST_DATABASE_URL to point at a Postgres instance; without it the suite
+falls back to a throwaway local SQLite file.
 """
 import pytest
 import os
@@ -11,7 +12,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Override DATABASE_URL BEFORE any app imports
-os.environ["DATABASE_URL"] = "postgresql://autotube:autotube_secret@127.0.0.1:5440/autotube_db"
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite:///./test_autotube.db")
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
@@ -19,10 +21,10 @@ from sqlalchemy.orm import sessionmaker
 from app.main import app
 from app.db import Base, get_db
 
-# Test database — same Postgres server but isolated via transactions
-TEST_DATABASE_URL = "postgresql://autotube:autotube_secret@127.0.0.1:5440/autotube_db"
-
-engine = create_engine(TEST_DATABASE_URL)
+engine = create_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False} if TEST_DATABASE_URL.startswith("sqlite") else {},
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -52,6 +54,17 @@ def setup_database():
             conn.commit()
     except Exception:
         pass  # Don't fail teardown
+
+
+@pytest.fixture(scope="function", autouse=True)
+def reset_rate_limiters():
+    """The in-memory per-IP limiters (10 auth req/min) would otherwise trip mid-suite,
+    since every test talks to the app from the same TestClient address."""
+    from app import middleware
+    for limiter in (middleware.general_limiter, middleware.auth_limiter, middleware.job_limiter):
+        with limiter.lock:
+            limiter.requests.clear()
+    yield
 
 
 @pytest.fixture(scope="module")

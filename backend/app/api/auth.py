@@ -299,7 +299,7 @@ import secrets as _secrets
 import time as _time
 from threading import Lock as _Lock
 
-# In-memory password reset tokens (production would use Redis or DB)
+# In-memory password reset tokens (production would persist these in the DB)
 _reset_tokens: dict = {}
 _reset_lock = _Lock()
 RESET_TOKEN_EXPIRY = 3600  # 1 hour
@@ -349,7 +349,7 @@ def forgot_password(
                 "expires": now + RESET_TOKEN_EXPIRY
             }
         # In production: send email with reset link
-        # For now: log it (visible in Docker logs)
+        # For now: log it (visible in server logs)
         import logging
         logging.getLogger(__name__).info(f"Password reset token for {user.email}: {token}")
 
