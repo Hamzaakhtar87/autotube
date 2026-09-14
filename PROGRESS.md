@@ -183,9 +183,8 @@ cd backend && pytest tests/test_niche_profiles.py -v
   ships. Edit `profiles.json`, re-run `python -m app.niches.seed`, and
   `test_two_worked_examples_are_final_and_four_stubs_are_placeholders` will
   fail until its `final` set is updated to match — that's deliberate.
-- The transaction-pooler URL (port 6543, `?pgbouncer=true`) fails psycopg2's
-  startup handshake ("server didn't return client encoding"). The session
-  pooler (5432) works and is what Alembic, the seeder, and tests used.
-  Investigate before the API is pointed at 6543.
-- Password: fixed in `.env.local` for `DATABASE_URL` only; `DIRECT_URL` there
-  still has the old bracketed one. The repo's `.env` has both corrected.
+- Postgres access: both URLs in the repo's `.env` connect (session pooler 5432
+  for Alembic/seeding/tests, transaction pooler 6543 for the app). One earlier
+  6543 attempt failed psycopg2's startup handshake; it did not reproduce, so
+  treat it as transient unless it shows up again. `.env.local` was synced to
+  the same corrected `DIRECT_URL`.
