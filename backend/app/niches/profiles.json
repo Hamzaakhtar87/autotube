@@ -1,0 +1,80 @@
+[
+  {
+    "id": "true_crime_narration",
+    "display_name": "True Crime Narration",
+    "script_system_prompt": "You are a senior true-crime YouTube narrator. Build tension slowly, use short declarative sentences, end each beat on an unresolved detail, avoid humor entirely.",
+    "hook_style": "cold_open_question",
+    "pacing": { "avg_clip_seconds": 6, "cuts_style": "slow_deliberate" },
+    "visual_prompt_modifiers": "muted color grade, handheld camera feel, dim lighting, documentary realism, no text overlays in-frame",
+    "voice_tone": "low, measured, ominous",
+    "music_mood": "dark ambient, sparse, low BPM",
+    "caption_style": "minimal lower-third, no emoji, serif font",
+    "aspect_default": "16:9",
+    "needs_tts": true
+  },
+  {
+    "id": "whatif_hypothetical",
+    "display_name": "What-If / Hypothetical",
+    "script_system_prompt": "You are a viral Shorts writer. Open with 'What if...', escalate absurdity every 2 sentences, punchy short sentences, end on a twist.",
+    "hook_style": "direct_question_pattern_interrupt",
+    "pacing": { "avg_clip_seconds": 3, "cuts_style": "fast_energetic" },
+    "visual_prompt_modifiers": "vivid saturated color, dynamic camera motion, surreal/exaggerated visuals",
+    "voice_tone": "energetic, fast-talking",
+    "music_mood": "upbeat electronic, high BPM",
+    "caption_style": "bold pop-up captions, emoji-friendly, sans-serif",
+    "aspect_default": "9:16",
+    "needs_tts": false
+  },
+  {
+    "id": "tech_explainer",
+    "display_name": "Tech Explainer",
+    "script_system_prompt": "PLACEHOLDER — clear, confident explainer voice; one concept per beat; analogies over jargon; ends with a concrete takeaway.",
+    "hook_style": "problem_then_promise",
+    "pacing": { "avg_clip_seconds": 5, "cuts_style": "steady_informational" },
+    "visual_prompt_modifiers": "PLACEHOLDER — clean studio lighting, minimal set, subtle motion graphics feel",
+    "voice_tone": "confident, warm, clear",
+    "music_mood": "light electronic, minimal, unobtrusive",
+    "caption_style": "clean sans-serif, keyword highlight",
+    "aspect_default": "16:9",
+    "needs_tts": true
+  },
+  {
+    "id": "motivational",
+    "display_name": "Motivational / Self-Improvement",
+    "script_system_prompt": "PLACEHOLDER — direct address to viewer, second person, builds from struggle to resolve, rhythmic repetition.",
+    "hook_style": "challenge_statement",
+    "pacing": { "avg_clip_seconds": 4, "cuts_style": "building_momentum" },
+    "visual_prompt_modifiers": "PLACEHOLDER — warm golden-hour lighting, sweeping motion, human-scale imagery",
+    "voice_tone": "warm, rising intensity",
+    "music_mood": "cinematic build, swelling strings",
+    "caption_style": "large bold centered text, minimal punctuation",
+    "aspect_default": "9:16",
+    "needs_tts": false
+  },
+  {
+    "id": "documentary",
+    "display_name": "Documentary",
+    "script_system_prompt": "PLACEHOLDER — measured third-person narration, factual framing, context before claim.",
+    "hook_style": "establishing_context",
+    "pacing": { "avg_clip_seconds": 7, "cuts_style": "patient_observational" },
+    "visual_prompt_modifiers": "PLACEHOLDER — natural lighting, wide establishing shots, realistic texture",
+    "voice_tone": "neutral, measured, authoritative",
+    "music_mood": "understated orchestral, low presence",
+    "caption_style": "small lower-third, factual tone",
+    "aspect_default": "16:9",
+    "needs_tts": true
+  },
+  {
+    "id": "listicle",
+    "display_name": "Listicle",
+    "script_system_prompt": "PLACEHOLDER — numbered format, one hook per item, brisk pacing, clear item transitions.",
+    "hook_style": "numbered_promise",
+    "pacing": { "avg_clip_seconds": 4, "cuts_style": "brisk_segmented" },
+    "visual_prompt_modifiers": "PLACEHOLDER — bright even lighting, clear subject framing per item",
+    "voice_tone": "upbeat, clear enunciation",
+    "music_mood": "light pop, consistent energy",
+    "caption_style": "numbered badge overlay, sans-serif",
+    "aspect_default": "9:16",
+    "needs_tts": false
+  }
+]

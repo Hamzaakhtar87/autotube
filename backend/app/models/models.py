@@ -203,3 +203,27 @@ class CompetitorChannel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     user = relationship("User")
+
+
+class NicheProfileRow(Base):
+    """
+    Storage row for a niche profile. Read it through app.niches.get_niche_profile,
+    which validates it into the typed NicheProfile — never query this directly
+    from pipeline code. Column list mirrors Appendix A of the build plan.
+    """
+    __tablename__ = "niche_profiles"
+
+    id = Column(String, primary_key=True)          # snake_case, stable, never renamed
+    display_name = Column(String, nullable=False)
+    script_system_prompt = Column(Text, nullable=False)
+    hook_style = Column(String, nullable=False)
+    pacing = Column(JSON, nullable=False)           # {"avg_clip_seconds": number, "cuts_style": str}
+    visual_prompt_modifiers = Column(Text, nullable=False)
+    voice_tone = Column(String, nullable=False)
+    music_mood = Column(String, nullable=False)
+    caption_style = Column(String, nullable=False)
+    aspect_default = Column(String, nullable=False)  # '9:16' | '16:9'
+    needs_tts = Column(Boolean, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
