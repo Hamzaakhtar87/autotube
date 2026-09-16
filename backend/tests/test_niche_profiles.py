@@ -123,13 +123,12 @@ def test_seeded_profile_matches_data_file_verbatim(niche_id, db_session: Session
     assert from_db == from_file
 
 
-def test_two_worked_examples_are_final_and_four_stubs_are_placeholders(db_session: Session):
-    """Appendix A ships two finished profiles; the other four still carry PLACEHOLDER
-    prompt text that must get a human writing pass before launch."""
-    final = {"true_crime_narration", "whatif_hypothetical"}
+def test_no_profile_ships_with_placeholder_text(db_session: Session):
+    """Appendix A shipped four stubs marked PLACEHOLDER; all six got a human writing
+    pass on 2026-09-16. Nothing may regress to placeholder copy."""
     for niche_id in SEEDED_IDS:
         profile = get_niche_profile(niche_id, db_session)
-        assert profile.is_placeholder == (niche_id not in final), niche_id
+        assert not profile.is_placeholder, f"{niche_id} still carries PLACEHOLDER text"
 
 
 def test_list_returns_all_seeded_profiles(db_session: Session):

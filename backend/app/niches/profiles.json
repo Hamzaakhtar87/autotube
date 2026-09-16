@@ -4,7 +4,10 @@
     "display_name": "True Crime Narration",
     "script_system_prompt": "You are a senior true-crime YouTube narrator. Build tension slowly, use short declarative sentences, end each beat on an unresolved detail, avoid humor entirely.",
     "hook_style": "cold_open_question",
-    "pacing": { "avg_clip_seconds": 6, "cuts_style": "slow_deliberate" },
+    "pacing": {
+      "avg_clip_seconds": 6,
+      "cuts_style": "slow_deliberate"
+    },
     "visual_prompt_modifiers": "muted color grade, handheld camera feel, dim lighting, documentary realism, no text overlays in-frame",
     "voice_tone": "low, measured, ominous",
     "music_mood": "dark ambient, sparse, low BPM",
@@ -17,7 +20,10 @@
     "display_name": "What-If / Hypothetical",
     "script_system_prompt": "You are a viral Shorts writer. Open with 'What if...', escalate absurdity every 2 sentences, punchy short sentences, end on a twist.",
     "hook_style": "direct_question_pattern_interrupt",
-    "pacing": { "avg_clip_seconds": 3, "cuts_style": "fast_energetic" },
+    "pacing": {
+      "avg_clip_seconds": 3,
+      "cuts_style": "fast_energetic"
+    },
     "visual_prompt_modifiers": "vivid saturated color, dynamic camera motion, surreal/exaggerated visuals",
     "voice_tone": "energetic, fast-talking",
     "music_mood": "upbeat electronic, high BPM",
@@ -28,52 +34,64 @@
   {
     "id": "tech_explainer",
     "display_name": "Tech Explainer",
-    "script_system_prompt": "PLACEHOLDER — clear, confident explainer voice; one concept per beat; analogies over jargon; ends with a concrete takeaway.",
+    "script_system_prompt": "You are a former product engineer explaining one idea to a smart friend who has never coded. One concept per beat — ground it in a real-world analogy before you name it technically, then move on before it goes stale. Never stack two new ideas in one breath. Always choose the plainest correct word: 'it sends a request and waits' before 'it makes an API call.' Close on one concrete takeaway the viewer could repeat to someone else tomorrow. No manufactured excitement, no 'and that's amazing' — the idea's own logic should carry the interest.",
     "hook_style": "problem_then_promise",
-    "pacing": { "avg_clip_seconds": 5, "cuts_style": "steady_informational" },
-    "visual_prompt_modifiers": "PLACEHOLDER — clean studio lighting, minimal set, subtle motion graphics feel",
-    "voice_tone": "confident, warm, clear",
-    "music_mood": "light electronic, minimal, unobtrusive",
-    "caption_style": "clean sans-serif, keyword highlight",
+    "pacing": {
+      "avg_clip_seconds": 5,
+      "cuts_style": "steady_informational"
+    },
+    "visual_prompt_modifiers": "clean studio lighting, one focal subject per frame, understated motion graphics like arrows and simple diagrams layered over live action, neutral modern background, zero visual clutter",
+    "voice_tone": "confident, warm, unhurried clarity",
+    "music_mood": "minimal synth pad, low presence, no swells, functions as backdrop not soundtrack",
+    "caption_style": "clean sans-serif, bold only on technical terms",
     "aspect_default": "16:9",
     "needs_tts": true
   },
   {
     "id": "motivational",
     "display_name": "Motivational / Self-Improvement",
-    "script_system_prompt": "PLACEHOLDER — direct address to viewer, second person, builds from struggle to resolve, rhythmic repetition.",
+    "script_system_prompt": "You are speaking to one person having a hard week, not a crowd. Second person throughout — 'you', never 'we' or 'people.' Structure every script as a descent then a climb: name the specific struggle without softening it, then build the case for continuing, returning to one anchor phrase at least twice for rhythm. No generic uplift language — earn every claim with a concrete image, never an abstraction. End on an instruction, not a platitude — something doable in the next hour, not a feeling to sit with.",
     "hook_style": "challenge_statement",
-    "pacing": { "avg_clip_seconds": 4, "cuts_style": "building_momentum" },
-    "visual_prompt_modifiers": "PLACEHOLDER — warm golden-hour lighting, sweeping motion, human-scale imagery",
-    "voice_tone": "warm, rising intensity",
-    "music_mood": "cinematic build, swelling strings",
-    "caption_style": "large bold centered text, minimal punctuation",
+    "pacing": {
+      "avg_clip_seconds": 4,
+      "cuts_style": "building_momentum"
+    },
+    "visual_prompt_modifiers": "warm golden-hour or blue-hour lighting, slow-motion human movement, wide shots that dwarf the subject early and tight shots that fill the frame with them later, natural texture over polish",
+    "voice_tone": "warm at the base, rising intensity toward the close, never shouting",
+    "music_mood": "cinematic build from sparse piano to full strings, one clear swell timed to the script's turn",
+    "caption_style": "large bold centered text, one phrase per screen, minimal punctuation",
     "aspect_default": "9:16",
     "needs_tts": false
   },
   {
     "id": "documentary",
     "display_name": "Documentary",
-    "script_system_prompt": "PLACEHOLDER — measured third-person narration, factual framing, context before claim.",
+    "script_system_prompt": "You are a measured third-person narrator in the observational-documentary tradition — nature-doc gravity applied to human subjects. Every claim gets context before assertion: establish where, when, and who before what happened. No editorializing adjectives — let facts carry weight through sequencing and pause, not intensifiers. Silence and understatement are tools, not gaps to fill. Prefer 'the records show' over 'shockingly.'",
     "hook_style": "establishing_context",
-    "pacing": { "avg_clip_seconds": 7, "cuts_style": "patient_observational" },
-    "visual_prompt_modifiers": "PLACEHOLDER — natural lighting, wide establishing shots, realistic texture",
-    "voice_tone": "neutral, measured, authoritative",
-    "music_mood": "understated orchestral, low presence",
-    "caption_style": "small lower-third, factual tone",
+    "pacing": {
+      "avg_clip_seconds": 7,
+      "cuts_style": "patient_observational"
+    },
+    "visual_prompt_modifiers": "natural available lighting, wide establishing shots held longer than feels comfortable, realistic unretouched texture, static or slow tripod movement over handheld",
+    "voice_tone": "neutral, measured, low register, authoritative without performing authority",
+    "music_mood": "understated orchestral or solo instrument, mostly absent, surfacing only at structural turns",
+    "caption_style": "small lower-third, factual register, no styling flourishes",
     "aspect_default": "16:9",
     "needs_tts": true
   },
   {
     "id": "listicle",
     "display_name": "Listicle",
-    "script_system_prompt": "PLACEHOLDER — numbered format, one hook per item, brisk pacing, clear item transitions.",
+    "script_system_prompt": "You are building a numbered list where every item earns its own complete hook — no coasting on the format to carry a weak entry. State the number, land one sharp claim, deliver the payoff, cut. Vary sentence length item to item so the rhythm doesn't flatten. Transitions should feel like a beat drop, not a slide — 'and here's where it gets worse' beats 'next up.'",
     "hook_style": "numbered_promise",
-    "pacing": { "avg_clip_seconds": 4, "cuts_style": "brisk_segmented" },
-    "visual_prompt_modifiers": "PLACEHOLDER — bright even lighting, clear subject framing per item",
-    "voice_tone": "upbeat, clear enunciation",
-    "music_mood": "light pop, consistent energy",
-    "caption_style": "numbered badge overlay, sans-serif",
+    "pacing": {
+      "avg_clip_seconds": 4,
+      "cuts_style": "brisk_segmented"
+    },
+    "visual_prompt_modifiers": "bright even lighting, clean single-subject framing per item, high visual contrast between items so the cut itself reads as a beat, consistent color accent across items",
+    "voice_tone": "upbeat, crisp enunciation, confident pace without rushing",
+    "music_mood": "light pop or hip-hop-adjacent beat, consistent tempo throughout, no dramatic shifts",
+    "caption_style": "numbered badge overlay, sans-serif, synced to item-transition beats",
     "aspect_default": "9:16",
     "needs_tts": false
   }

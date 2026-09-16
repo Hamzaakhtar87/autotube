@@ -179,10 +179,15 @@ cd backend && pytest tests/test_niche_profiles.py -v
 
 ### Still rough / carry-forward
 
-- The four stub profiles need your hand-written prompt text before anything
-  ships. Edit `profiles.json`, re-run `python -m app.niches.seed`, and
-  `test_two_worked_examples_are_final_and_four_stubs_are_placeholders` will
-  fail until its `final` set is updated to match — that's deliberate.
+- ~~The four stub profiles need hand-written prompt text.~~ **Done
+  2026-09-16.** Hamza supplied final `script_system_prompt`,
+  `visual_prompt_modifiers`, `voice_tone`, `music_mood`, and `caption_style`
+  for `tech_explainer`, `motivational`, `documentary`, `listicle`; loaded
+  verbatim into `profiles.json`, reseeded to Supabase (6 rows updated), no
+  PLACEHOLDER text remains anywhere. The two locked profiles are unchanged.
+  The placeholder test now asserts that *no* profile carries PLACEHOLDER
+  copy, so a regression to stub text fails the suite. Full suite 55 passed;
+  niche tests 29 passed on SQLite and on the live Supabase DB.
 - Postgres access: both URLs in the repo's `.env` connect (session pooler 5432
   for Alembic/seeding/tests, transaction pooler 6543 for the app). One earlier
   6543 attempt failed psycopg2's startup handshake; it did not reproduce, so
