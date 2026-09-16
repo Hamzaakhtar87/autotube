@@ -14,6 +14,7 @@ import {
     User, Crown, Mail, Upload, Moon, Sun, Monitor, Key, Lock
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { ApiKeysCard } from "@/components/api-keys-card"
 
 export default function SettingsPage() {
     const { toast } = useToast()
@@ -204,6 +205,9 @@ export default function SettingsPage() {
                         </Button>
                     </CardContent>
                 </Card>
+
+                {/* ═══ BYOK API KEYS (Phase 2) ═══ */}
+                <ApiKeysCard />
 
                 {/* ═══ THEME SETTINGS ═══ */}
                 <Card>

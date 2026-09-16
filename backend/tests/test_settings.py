@@ -1,6 +1,6 @@
 """
 SETTINGS & BILLING API UNIT TESTS
-Tests: Config status, API key update, Subscription status
+Tests: Config status, Subscription status
 """
 import pytest
 import uuid
@@ -44,15 +44,10 @@ class TestSettingsAPI:
         res = client.get("/config/status")
         assert res.status_code in [401, 403]
 
-    def test_update_api_keys(self, client):
-        """Should accept API key updates."""
-        res = client.post("/config/keys", json={
-            "openai_key": "sk-test-key",
-            "pexels_key": "test-pexels-key",
-            "gemini_key": "test-gemini-key"
-        })
-        assert res.status_code == 200
-        assert res.json()["status"] == "updated"
+    def test_legacy_config_keys_route_is_gone(self, client):
+        """POST /config/keys (unauthenticated, wrote keys into os.environ) was removed in Phase 2."""
+        res = client.post("/config/keys", json={"pexels_key": "x", "gemini_key": "y"}, headers=self.headers)
+        assert res.status_code in (404, 405)
 
 
 class TestBillingAPI:

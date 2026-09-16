@@ -10,6 +10,8 @@ psycopg2-binary==2.9.9
 
 # ─── Auth ───
 python-jose[cryptography]==3.3.0
+# BYOK vault: libsodium sealed boxes (encrypt-only in the API, decrypt in the runner)
+pynacl==1.5.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 
@@ -38,3 +40,4 @@ pytest==8.0.0
 pytest-asyncio==0.23.5
 httpx==0.26.0
 pytest-cov==4.1.0
+respx==0.21.1

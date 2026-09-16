@@ -27,10 +27,6 @@ class ConfigStatus(BaseModel):
 
 from pydantic import BaseModel, Field
 
-class APIKeys(BaseModel):
-    pexels_key: str
-    gemini_key: str
-
 class UserPreferences(BaseModel):
     voice: str = Field("en-US-GuyNeural", pattern=r"^[a-zA-Z0-9_\-]+$")
     niche: str = Field("psychology", pattern=r"^[a-zA-Z0-9 _,.!\-?'\"]*$", max_length=150)
@@ -125,13 +121,6 @@ async def upload_secrets(request: Request):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/config/keys")
-def update_keys(keys: APIKeys):
-    """Update API keys at runtime."""
-    os.environ["PEXELS_API_KEY"] = keys.pexels_key
-    os.environ["GEMINI_API_KEY"] = keys.gemini_key
-    return {"status": "updated"}
 
 # OAuth Flow
 

@@ -73,6 +73,10 @@ app.include_router(stats.router, tags=["stats"])
 app.include_router(settings.router, tags=["settings"])
 app.include_router(videos.router)
 
+# BYOK key vault (Phase 2)
+from app.api import keys
+app.include_router(keys.router)
+
 # Admin router
 from app.api import admin
 app.include_router(admin.router, tags=["admin"])
@@ -95,6 +99,18 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import OUTPUT_DIR
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
+
+# FastAPI's stock 422 body echoes the offending `input` back to the client; for a
+# body carrying an API key that would put the key in a response. Keep loc/msg/type only.
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_without_echo(request, exc: RequestValidationError):
+    errors = [{"loc": e.get("loc"), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": errors})
+
 
 @app.get("/")
 def root():

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, JSON, Boolean, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, JSON, Boolean, Float, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -224,6 +224,33 @@ class NicheProfileRow(Base):
     caption_style = Column(String, nullable=False)
     aspect_default = Column(String, nullable=False)  # '9:16' | '16:9'
     needs_tts = Column(Boolean, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class ProviderKey(Base):
+    """One encrypted BYOK credential per (user, provider). Phase 2.
+
+    `ciphertext` is a libsodium sealed box (see app/vault/seal.py) that only the
+    job runner's private key can open. Nothing in the API reads it back.
+    """
+    __tablename__ = "provider_keys"
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", name="uq_provider_keys_user_provider"),
+        CheckConstraint(
+            "provider in ('anthropic','openai','groq','gemini','kling','veo','seedance')",
+            name="provider_keys_provider",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False)
+    ciphertext = Column(Text, nullable=False)
+    key_version = Column(Integer, nullable=False, default=1)
+    last_tested_at = Column(DateTime(timezone=True), nullable=True)
+    last_test_status = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
