@@ -349,6 +349,11 @@ cd ../frontend && npm run build
   `app/db.py` now strips Prisma-only query params before `create_engine`.
   Verified: `uvicorn app.main:app` from `backend/` serves `/auth/login`
   against the live pooler (was psycopg2 OperationalError); suite 320/320.
+- ~~Manual key-PUT check against the running API.~~ **Done 2026-10-03.**
+  Hamza ran the manual invalid-key test: `PUT /keys/{provider}` with a bogus
+  key came back with the specific per-status message ("The provider rejected
+  this key as invalid."), not a generic error, and nothing was stored.
+  **Phase 2 is fully closed.**
 - The live-key check (real funded keys against all 7 providers) was skipped
   this phase by decision; the testers were verified against mocked responses
   shaped from each provider's documented error format. Run by hand once keys
@@ -412,3 +417,131 @@ dispatch run after the resume: 3× HTTP 200
 Residual risk: GitHub pauses *schedules* in repos with no pushes for 60
 days — irrelevant while phases are being committed, but worth a paid plan
 or external pinger if the repo ever goes dormant.
+
+---
+
+## Phase 3 — Script generation
+
+**Status: done.** 2026-10-03. One deliberate gap: the two real side-by-side
+sample scripts (and the live judge run) are blocked on a real LLM key — see
+carry-forward.
+
+### Decisions made this phase
+
+- **Default provider fallback order: anthropic → openai → gemini → groq**,
+  quality-first. Niche contrast is the product, so the strongest
+  style-followers go first; ordering by quality costs nothing in robustness
+  because every failure (missing key, invalid, no credit, rate limit,
+  timeout) falls through to the next configured provider — a $0-balance user
+  whose only working key is free-tier Gemini or Groq still lands on it.
+  Configurable per job (`config.script_provider_order`, list or comma
+  string) and per deployment (env `SCRIPT_PROVIDER_ORDER`).
+- **`needs_tts` needed no schema work** — it has been on the schema, all six
+  profiles, and the DB since Phase 1 (Appendix A included it). Phase 3 just
+  carries it through: `Script.needs_tts` is copied from the profile,
+  untouched, no narration logic anywhere.
+- **Adapter lives in `backend/runner/`** (job-execution side) because it
+  consumes decrypted keys; the "nothing under `app/` imports `runner`"
+  invariant from Phase 2 keeps it out of the API process. The adapter itself
+  is DB-free: credentials come from a `key_lookup` callable (job execution
+  passes a closure over `load_provider_key`; the sample CLI passes one over
+  env vars), so unit tests never touch the vault.
+- Same no-leak rule as Phase 2 testers: provider error text is **never**
+  passed through (some providers echo the key in error bodies); every
+  failure maps to fixed wording that names the provider and says what to do.
+
+### What was built
+
+- **`runner/llm_adapter.py`** — `generate_script(niche_profile, topic,
+  format, *, key_lookup, order=None) -> Script`. Builds the system prompt
+  from `script_system_prompt` verbatim; the user message carries topic, a
+  per-`hook_style` opening rule (data keyed on the enum, no niche-id
+  branches), scene count/length derived from `pacing.avg_clip_seconds` and
+  the format's target duration (short 45–60s, long 180–300s), and the strict
+  `[SCENE]/SPEECH:/VISUAL:` output format. Providers: Anthropic
+  (`claude-sonnet-4-5`), OpenAI (`gpt-4o`), Gemini (`gemini-2.5-flash`,
+  key in header never URL), Groq (`llama-3.3-70b-versatile`). Failures are
+  classified (missing_key / invalid_key / no_credit / no_permission /
+  rate_limited / timeout / network_error / unexpected_response /
+  empty_script) into `ProviderAttempt`s with job-log-ready messages;
+  `Script` carries `scenes`, `full_text`, `word_count`,
+  `estimated_duration_seconds`, `provider`, `model`, `needs_tts`, and the
+  `failed_attempts` that preceded success. All-fail raises
+  `ScriptGenerationFailed` whose `user_message` is self-contained.
+- **`runner/script_stage.py`** — `run_script_stage(job, db)`: reads
+  `job.config` (`niche`, `topic`, `format`, optional
+  `script_provider_order`), loads the profile via the Phase 1 accessor,
+  builds the vault `key_lookup`, and narrates everything into `job_logs`:
+  one INFO start row, one WARNING per failed provider attempt, one
+  self-contained ERROR + job `FAILED` on total failure, one INFO success row
+  (provider, scene count, est. duration, needs_tts). Bad config / unknown
+  niche fail loudly the same way (`ScriptStageError`). This is the seam
+  Phase 6 wires into the Actions pipeline.
+- **`runner/style_judge.py`** — `judge_hook_contrast(script_a, rule_a,
+  script_b, rule_b, *, key_lookup)`: one LLM call, both openings plus their
+  expected hook rules, strict two-line answer (`VERDICT: same|different`,
+  `REASON: <one line>`). Phase 3's slice of the Phase 8 judge layer.
+- **`runner/sample_scripts.py`** — dev CLI:
+  `python -m runner.sample_scripts --topic "..." [--judge]`. Profiles
+  straight from `profiles.json` (no DB), keys from env
+  (`GEMINI_API_KEY` etc.), prints both scripts side by side and saves them
+  under `core/output_v2/sample_scripts/`.
+
+### Tests (all green)
+
+Full backend suite: **344 passed, 2 skipped** (was 320; the 2 skips are the
+opt-in real-LLM tests). Leak sweep clean — the new mocked provider error
+bodies deliberately echo the planted key, and the session-wide sweep plus
+explicit asserts prove it never reaches a message, log, or exception.
+
+1. **`tests/test_script_adapter.py`** (24 tests, respx-mocked): success per
+   provider response shape; `needs_tts` carried True (true crime) / False
+   (what-if); prompt carries the profile's system prompt verbatim + the hook
+   rule; fallback on invalid key / missing key / unparseable output; custom
+   order only calls its provider; all-missing-keys names all four providers
+   with "no API key is saved" + Settings pointer and no traceback wording;
+   mixed failure matrix (invalid / insufficient_quota→no_credit / timeout /
+   missing); Gemini 400 `API_KEY_INVALID`; 429 / network classification;
+   order parsing (unknown, video provider, duplicate, empty all rejected);
+   scene parser edge cases.
+2. **`tests/test_script_stage.py`** (8 tests) — **the plan's named
+   integration test**: a job whose user has no keys gets 4 WARNING
+   `job_logs` rows (each naming a provider and explaining the key is
+   missing, with where to fix it) plus one self-contained ERROR row, job
+   marked `failed`, no traceback or exception-class text anywhere; invalid
+   key for the only configured provider names it with the invalid wording;
+   happy path logs provider/scenes/needs_tts and leaves job status alone;
+   per-job config order respected; unknown niche / missing topic / bad
+   order each fail loudly into the job log.
+3. **`tests/test_script_style_ai.py`** (opt-in: `AUTOTUBE_AI_TESTS=1`,
+   real network + tokens): generates true-crime and what-if scripts on the
+   same topic, string-checks the hooks ("what if" opening vs not), then runs
+   the LLM judge and requires `different` with a non-empty one-line reason.
+
+```bash
+cd backend
+rm -f test_autotube.db && python -m pytest -q -p no:cacheprovider -W ignore   # all 344
+python -m pytest -q tests/test_script_adapter.py -v                           # adapter unit tests
+python -m pytest -q tests/test_script_stage.py -v                             # job-log integration test
+AUTOTUBE_AI_TESTS=1 python -m pytest tests/test_script_style_ai.py -v -s      # real-LLM style judge (needs a key)
+python -m runner.sample_scripts --topic "The Dyatlov Pass incident" --judge   # side-by-side samples (needs a key)
+```
+
+### Still rough / carry-forward
+
+- **No real LLM key exists in this environment** — `GEMINI_API_KEY` /
+  `GROQ_API_KEY` in `.env` are empty placeholders, so the two real sample
+  scripts and the live judge run could not be produced. Put any one script
+  key in `.env` (Gemini free tier is enough) and run the last two commands
+  above. The missing-key path itself was exercised for real: the CLI run
+  without keys produced exactly the per-provider, human-readable message
+  the integration test pins.
+- Model names are constants in `runner/llm_adapter.py`
+  (`SCRIPT_MODELS`) — revisit when providers deprecate them; not worth
+  config surface yet.
+- The judge is deliberately rough (openings only, one call, two-line
+  format). Phase 8 owns the real judge pass over full scripts and visual
+  prompts.
+- `backend/core/script_agent.py` (legacy) is now fully superseded by
+  `runner/llm_adapter.py` but stays untouched until Phases 4–6 replace the
+  rest of `backend/core/` and it can all go at once.
