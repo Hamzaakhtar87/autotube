@@ -5,10 +5,10 @@ Core video generation settings are in backend/core/config.py.
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load .env as defaults — real environment variables take precedence
-load_dotenv(Path(__file__).parent.parent.parent / ".env", override=False)
+# The repo .env is loaded in app/__init__.py, before any app module reads
+# os.environ (this module used to load it, but that ran after app.db had
+# already built its engine).
 
 # Where the pipeline in backend/core writes finished videos (core/config.py uses the same default).
 CORE_DIR = Path(__file__).resolve().parent.parent.parent / "core"

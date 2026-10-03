@@ -334,12 +334,21 @@ cd ../frontend && npm run build
 - The runner has nothing reading `VAULT_PRIVATE_KEY` yet; `run-job.yml` gets
   `env: VAULT_PRIVATE_KEY: ${{ secrets.VAULT_PRIVATE_KEY }}` when Phase 6
   wires `load_provider_key` into the pipeline.
-- `backend/app/core/config.py` calls `load_dotenv(...parent.parent.parent /
-  ".env")`, which resolves to `backend/.env` — a file that doesn't exist — not
-  the repo's `autotube/.env`. So the API only sees variables exported in the
-  shell. Pre-existing; noticed because the Supabase live check had to read the
-  repo `.env` itself. Fix when the API's env handling is next touched (Phase 6
-  or 9), deliberately, since it changes what the local API picks up.
+- ~~`backend/app/core/config.py` load_dotenv points at `backend/.env`~~ —
+  **fixed 2026-10-03** (it blocked running the API locally for the Phase 2
+  manual key test). The bug was two-layered: the dotenv path was wrong, *and*
+  it ran too late — `main.py` imports the api package → `app/db.py`, which
+  builds the SQLAlchemy engine from `os.environ` at import time, before
+  `app.core.config` ever loaded. So the engine always got the silent
+  `localhost:5432` fallback, whatever `.env` said. Env loading now lives in
+  `backend/app/__init__.py` (runs before any `app.*` submodule, for uvicorn,
+  pytest, and `python -m` scripts alike), pointed at the repo `autotube/.env`,
+  `override=False` so real env vars (and conftest's `DATABASE_URL`) still win.
+  Second find: the repo `.env`'s `DATABASE_URL` carries `?pgbouncer=true`
+  (Supabase's copy-paste string; a Prisma-only param psycopg2 rejects) —
+  `app/db.py` now strips Prisma-only query params before `create_engine`.
+  Verified: `uvicorn app.main:app` from `backend/` serves `/auth/login`
+  against the live pooler (was psycopg2 OperationalError); suite 320/320.
 - The live-key check (real funded keys against all 7 providers) was skipped
   this phase by decision; the testers were verified against mocked responses
   shaped from each provider's documented error format. Run by hand once keys
