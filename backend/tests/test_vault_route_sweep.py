@@ -4,8 +4,8 @@ Phase 2 test (3): every API route except the job-execution decrypt path.
 A user saves all seven planted keys. Then every route the app registers —
 enumerated from `app.routes`, not typed by hand, and pinned to EXPECTED_ROUTES
 so a route added later can't silently skip this — is called as the key's
-owner and as an admin. No response may contain a planted secret or the stored
-ciphertext. Also covered: the static `/output` mount, the import boundary
+owner, as an admin, and as an unrelated regular user. No response may contain
+a planted secret or the stored ciphertext. Also covered: the static `/output` mount, the import boundary
 around `runner/vault_decrypt.py`, decrypt refusing without the private key,
 and Supabase's PostgREST returning nothing from `provider_keys` with the anon key.
 """
@@ -123,7 +123,7 @@ def registered_routes():
 
 @pytest.fixture(scope="module")
 def vault_users(client):
-    """Owner with all 7 keys saved; an admin; the owner's stored ciphertexts."""
+    """Owner with all 7 keys saved; an admin; an unrelated regular user; the owner's stored ciphertexts."""
     from tests.conftest import TestingSessionLocal, register_and_login
 
     with respx.mock(assert_all_called=False) as m:
@@ -132,6 +132,7 @@ def vault_users(client):
         for p in PROVIDERS:
             assert client.put(f"/keys/{p}", json=credentials_for(p), headers=owner).status_code == 200
     admin_email, admin = register_and_login(client, "sweepadmin")
+    _, other = register_and_login(client, "sweepother")
     db = TestingSessionLocal()
     try:
         db.query(User).filter(User.email == admin_email).update({"is_admin": True})
@@ -141,7 +142,7 @@ def vault_users(client):
     finally:
         db.close()
     assert len(ciphertexts) == 7
-    return {"owner": owner, "admin": admin, "owner_id": owner_id, "ciphertexts": ciphertexts}
+    return {"owner": owner, "admin": admin, "other": other, "owner_id": owner_id, "ciphertexts": ciphertexts}
 
 
 def test_route_list_is_pinned():
@@ -160,7 +161,7 @@ def _call(client, method, path, headers):
     return [client.request(method, path, headers=headers)]
 
 
-@pytest.mark.parametrize("who", ["owner", "admin"])
+@pytest.mark.parametrize("who", ["owner", "admin", "other"])
 @pytest.mark.parametrize("method,path", EXPECTED_ROUTES, ids=[f"{m} {p}" for m, p in EXPECTED_ROUTES])
 def test_route_never_returns_a_key(client, vault_users, who, method, path):
     forbidden = list(PLANTED_SECRETS) + vault_users["ciphertexts"]

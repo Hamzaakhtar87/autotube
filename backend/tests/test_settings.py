@@ -50,6 +50,52 @@ class TestSettingsAPI:
         assert res.status_code in (404, 405)
 
 
+class TestUploadSecrets:
+    """POST /config/secrets writes the app-wide Google client_secrets.json: admin only."""
+
+    @pytest.fixture(autouse=True)
+    def setup_users(self, client, tmp_path, monkeypatch):
+        from app.api import settings as settings_module
+        from app.models.models import User
+        from tests.conftest import TestingSessionLocal
+
+        self.secrets_file = tmp_path / "client_secrets.json"
+        monkeypatch.setattr(settings_module, "SECRETS_FILE", str(self.secrets_file))
+        self.user = _register_and_login(client, "secrets_user")
+        admin_email = f"secrets_admin_{UNIQUE}@test.autotube.com"
+        client.post("/auth/register", json={"email": admin_email, "password": "SecurePass123!", "full_name": "Secrets Admin"})
+        res = client.post("/auth/login", data={"username": admin_email, "password": "SecurePass123!"})
+        self.admin = {"Authorization": f"Bearer {res.json()['access_token']}"}
+        db = TestingSessionLocal()
+        try:
+            db.query(User).filter(User.email == admin_email).update({"is_admin": True})
+            db.commit()
+        finally:
+            db.close()
+
+    def test_rejects_unauthenticated(self, client):
+        res = client.post("/config/secrets", json={"web": {}})
+        assert res.status_code in [401, 403]
+        assert not self.secrets_file.exists()
+
+    def test_rejects_regular_user(self, client):
+        res = client.post("/config/secrets", json={"web": {}}, headers=self.user)
+        assert res.status_code == 403
+        assert not self.secrets_file.exists()
+
+    def test_admin_bad_body_gets_fixed_message_not_exception_text(self, client):
+        res = client.post("/config/secrets", json={"nothing": True}, headers=self.admin)
+        assert res.status_code == 400
+        assert res.json()["detail"] == "Invalid client_secrets.json format"
+        assert not self.secrets_file.exists()
+
+    def test_admin_can_upload(self, client):
+        res = client.post("/config/secrets", json={"web": {"client_id": "x"}}, headers=self.admin)
+        assert res.status_code == 200
+        import json
+        assert json.loads(self.secrets_file.read_text()) == {"web": {"client_id": "x"}}
+
+
 class TestBillingAPI:
     """Test billing/subscription endpoints."""
 

@@ -10,6 +10,7 @@ from app.core import config
 from app.db import get_db
 from app.models.models import User, YouTubeAccount
 from app.services.auth_service import get_current_user, oauth2_scheme, decode_access_token, get_user_by_id
+from app.api.admin import require_admin
 
 router = APIRouter()
 
@@ -108,19 +109,19 @@ def get_profile(current_user: User = Depends(get_current_user)):
     }
 
 @router.post("/config/secrets")
-async def upload_secrets(request: Request):
-    # This is still global/admin level for now, as client_secrets is app-wide
+async def upload_secrets(request: Request, admin: User = Depends(require_admin)):
+    # client_secrets is app-wide, so only admins may replace it. The file is
+    # read back by the API process in the OAuth flow below, so it cannot live
+    # in the runner-only sealed-box vault.
     try:
         data = await request.json()
-        # Validate format roughly
-        if "web" not in data and "installed" not in data:
-             raise ValueError("Invalid client_secrets.json format")
-
-        with open(SECRETS_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Request body must be JSON")
+    if not isinstance(data, dict) or ("web" not in data and "installed" not in data):
+        raise HTTPException(status_code=400, detail="Invalid client_secrets.json format")
+    with open(SECRETS_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+    return {"status": "success"}
 
 # OAuth Flow
 

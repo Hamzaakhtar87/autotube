@@ -300,7 +300,8 @@ Full backend suite: **256 passed, 0 skipped** (was 55). Frontend build clean.
    the 60 registered (method, path) entries — 47 pre-existing routes, the 4 new
    `/keys` routes, the 8 auto-generated docs routes (`/docs`, `/redoc`,
    `/openapi.json`, `/docs/oauth2-redirect`, GET+HEAD) and the static `/output`
-   mount — is called as the key's owner and as an admin (120 calls); no
+   mount — is called as the key's owner, as an admin, and as an unrelated
+   regular user (180 calls); no
    response body or header may contain a planted key or a stored ciphertext,
    and none may 500. Plus: `GET /keys` has no secret-shaped fields; no
    response schema in `openapi.json` has a key-shaped property; only
@@ -346,3 +347,29 @@ cd ../frontend && npm run build
 - `GET /config/status` still reports `gemini_key_configured` /
   `pexels_key_configured` from env vars for the legacy pipeline; harmless,
   goes away with `backend/core` in Phases 3–6.
+
+### Review fixes at phase close (2026-10-03)
+
+Hamza's close-out review surfaced two gaps; both fixed in one pass.
+
+- **`POST /config/secrets` was completely unauthenticated** — any caller could
+  overwrite the app-wide Google OAuth `client_secrets.json` on disk, and
+  failures echoed `str(e)`. Now requires an admin (reuses `require_admin` from
+  `app/api/admin.py`) and returns fixed error strings. Sealed-box treatment
+  deliberately **not** applied: the API process itself reads this file in the
+  YouTube OAuth flow, so runner-only decrypt would break it; encryption at
+  rest is a separate threat model, deferred by decision. New tests:
+  `tests/test_settings.py::TestUploadSecrets` (401/403 unauth, 403 regular
+  user, fixed 400 message, admin 200 writes the file — patched to tmp_path).
+- **The route sweep never ran as a stranger.** `test_vault_route_sweep.py` now
+  parametrizes `who` over owner/admin/**other** (a third regular user), so
+  cross-user isolation is proven at the sweep's strength — no planted secret
+  or ciphertext in any response — not just `test_keys_are_per_user`'s
+  `configured`-flag check.
+
+Suite after: **319 passed, 1 failed, 0 regressions** (was 256). The one
+failure is `test_supabase_anon_cannot_read_provider_keys`, the *live*
+PostgREST check: `yscqegzuxxzqasnoadcv.supabase.co` is NXDOMAIN
+(`supabase.com` resolves fine), so the Supabase project is unreachable —
+likely paused. Environmental, touches none of the changed code; re-run it
+once the project is awake.
