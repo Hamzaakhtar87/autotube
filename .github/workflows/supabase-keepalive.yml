@@ -1,6 +1,13 @@
-# Supabase free-tier projects auto-pause after 7 days without activity.
-# This runs a real SELECT against the database every 5 days (max gap across
-# month boundaries is also 5 days) so the project never goes idle.
+# Supabase free-tier projects are paused for LOW activity over a rolling
+# 7-day window — not a timer reset by any single request. Per the docs
+# (supabase.com/docs/guides/platform/free-project-pausing), "a few user
+# requests to the database each day" is what keeps a project up. The
+# original one-SELECT-every-5-days schedule was below that bar and the
+# project paused on 2026-09-28ish despite a successful ping on 09-21.
+#
+# So: daily runs, a few real SELECTs per run, curl retries for transient
+# DNS/network blips, and a GitHub issue filed on failure so a break is
+# never silent again (the two failed runs in Sep went unnoticed).
 #
 # Requires repo secrets: SUPABASE_URL, SUPABASE_ANON_KEY
 # Reads the public._keepalive table (RLS policy allows anon SELECT).
@@ -10,7 +17,7 @@ name: Supabase Keepalive
 
 on:
   schedule:
-    - cron: "0 9 */5 * *"   # 09:00 UTC on days 1,6,11,16,21,26,31
+    - cron: "17 9 * * *"   # daily 09:17 UTC (off the hour: minute-0 slots get dropped under load)
   workflow_dispatch:
 
 permissions:
@@ -22,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Query _keepalive table
+      - name: Query _keepalive table (3x)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -32,14 +39,46 @@ jobs:
             echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY secrets are not set"
             exit 1
           fi
-          status=$(curl -sS -o /tmp/body.json -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/_keepalive?select=id,pinged_at&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-          echo "HTTP $status"
-          cat /tmp/body.json; echo
-          if [ "$status" != "200" ]; then
-            echo "::error::Keepalive query failed with HTTP $status"
-            exit 1
-          fi
+          for i in 1 2 3; do
+            status=$(curl -sS -o /tmp/body.json -w "%{http_code}" \
+              --retry 5 --retry-all-errors --retry-delay 15 \
+              "$SUPABASE_URL/rest/v1/_keepalive?select=id,pinged_at&limit=1" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+            echo "ping $i: HTTP $status"
+            cat /tmp/body.json; echo
+            if [ "$status" != "200" ]; then
+              echo "::error::Keepalive query failed with HTTP $status"
+              exit 1
+            fi
+            sleep 2
+          done
           echo "Supabase project is awake."
+
+  alert:
+    name: File issue on failure
+    needs: ping
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or bump the keepalive-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create supabase-keepalive --repo "$REPO" --force 2>/dev/null || true
+          body="Keepalive run failed: $RUN_URL
+
+          If this is a DNS failure (curl exit 6 / could not resolve host), the project is likely already paused — resume it from the Supabase dashboard, then re-run this workflow. An HTTP 401/403 means the anon key rotated: update the SUPABASE_ANON_KEY repo secret."
+          existing=$(gh issue list --repo "$REPO" --label supabase-keepalive --state open --json number -q '.[0].number' || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --label supabase-keepalive \
+              --title "Supabase keepalive is failing" --body "$body"
+          fi
