@@ -373,3 +373,33 @@ PostgREST check: `yscqegzuxxzqasnoadcv.supabase.co` is NXDOMAIN
 (`supabase.com` resolves fine), so the Supabase project is unreachable —
 likely paused. Environmental, touches none of the changed code; re-run it
 once the project is awake.
+
+### Postmortem: the keepalive didn't keep the project alive (2026-10-03)
+
+The pause was confirmed (Hamza resumed it from the dashboard). Findings:
+
+- **Run history** (only 5 runs ever): 09-14 manual proof ✓, 09-16 ✓,
+  09-21 ✓, **09-26 ✗, 10-01 ✗** — the schedule fired as designed; the last
+  two runs failed with `curl: (6) Could not resolve host`, i.e. the project
+  was already paused/unreachable. Auth was never the problem: both repo
+  secrets date from 09-14, unrotated, and still work (verified below).
+- **Root cause was the design, not the plumbing.** Supabase pauses on *low
+  activity over a rolling 7-day window* — per the docs "typically a few
+  user requests to the database each day" keeps a project up. It is not a
+  7-day timer that one request resets, which is what the Phase 0 design
+  assumed. One SELECT every 5 days was below the volume bar: the 09-21
+  ping was a real, successful DB query and the project paused ~09-28
+  anyway. A 3-day interval would still have been below the bar.
+- **The break was silent** because nothing alerted on the two failed runs.
+
+Fix (`supabase-keepalive.yml`, commit 02dd22d): daily cron (09:17 UTC,
+off-the-hour because minute-0 slots get dropped under load), **3 SELECTs
+per run**, `curl --retry 5 --retry-all-errors` for transient DNS blips,
+and an `alert` job that files/bumps a `supabase-keepalive` GitHub issue on
+any failure with triage notes (DNS = paused, resume from dashboard;
+401/403 = anon key rotated, update the secret). Verified with a fresh
+dispatch run after the resume: 3× HTTP 200
+(https://github.com/Hamzaakhtar87/autotube/actions/runs/37121614109).
+Residual risk: GitHub pauses *schedules* in repos with no pushes for 60
+days — irrelevant while phases are being committed, but worth a paid plan
+or external pinger if the repo ever goes dormant.
