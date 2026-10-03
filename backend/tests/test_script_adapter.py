@@ -61,6 +61,12 @@ GEMINI_OK = {"candidates": [{"content": {"parts": [{"text": SAMPLE_RAW}]}}]}
 ECHOING_ERROR = {"error": {"message": f"bad key {PLANTED_API_KEY}", "type": "invalid_request_error"}}
 
 
+@pytest.fixture(autouse=True)
+def fast_retries(monkeypatch):
+    """Retries are real in prod; the 15s pause is not welcome in a test run."""
+    monkeypatch.setattr("runner.llm_adapter.time.sleep", lambda s: None)
+
+
 def planted_lookup(provider):
     return {"api_key": PLANTED_API_KEY}
 
@@ -203,6 +209,56 @@ class TestAllProvidersFail:
         (attempt,) = exc_info.value.attempts
         assert attempt.reason is FailureReason.invalid_key
         assert PLANTED_API_KEY not in attempt.message
+
+    @respx.mock
+    def test_retired_model_404_classified_as_model_unavailable(self):
+        # Shaped from the real 2026-10 response: Google 404s a retired model
+        # with advice text (which must not be passed through either).
+        respx.post(GEMINI_URL).respond(
+            404,
+            json={"error": {"code": 404, "status": "NOT_FOUND",
+                            "message": f"This model is no longer available {PLANTED_API_KEY}"}},
+        )
+        with pytest.raises(ScriptGenerationFailed) as exc_info:
+            generate_script(TRUE_CRIME, TOPIC, key_lookup=only({Provider.gemini}), order="gemini")
+        (attempt,) = exc_info.value.attempts
+        assert attempt.reason is FailureReason.model_unavailable
+        assert "no longer serves the model" in attempt.message
+        assert PLANTED_API_KEY not in attempt.message
+
+    @respx.mock
+    def test_transient_503_retried_once_then_succeeds(self):
+        # Real case (2026-10): Gemini 503 "high demand" on one call, fine on
+        # the next. One in-place retry must rescue it instead of falling
+        # through to unconfigured providers.
+        route = respx.post(GEMINI_URL)
+        route.side_effect = [
+            httpx.Response(503, json={"error": {"code": 503, "status": "UNAVAILABLE",
+                                                "message": f"high demand {PLANTED_API_KEY}"}}),
+            httpx.Response(200, json=GEMINI_OK),
+        ]
+        script = generate_script(TRUE_CRIME, TOPIC, key_lookup=only({Provider.gemini}), order="gemini")
+        assert script.provider is Provider.gemini
+        assert script.failed_attempts == ()  # the retry rescued it silently
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_persistent_503_classified_as_provider_unavailable(self):
+        route = respx.post(GEMINI_URL).respond(503, json=ECHOING_ERROR)
+        with pytest.raises(ScriptGenerationFailed) as exc_info:
+            generate_script(TRUE_CRIME, TOPIC, key_lookup=only({Provider.gemini}), order="gemini")
+        (attempt,) = exc_info.value.attempts
+        assert attempt.reason is FailureReason.provider_unavailable
+        assert "temporarily overloaded" in attempt.message
+        assert PLANTED_API_KEY not in attempt.message
+        assert route.call_count == 2  # original + one retry, no more
+
+    @respx.mock
+    def test_non_retryable_failure_not_retried(self):
+        route = respx.post(GEMINI_URL).respond(401, json=ECHOING_ERROR)
+        with pytest.raises(ScriptGenerationFailed):
+            generate_script(TRUE_CRIME, TOPIC, key_lookup=only({Provider.gemini}), order="gemini")
+        assert route.call_count == 1
 
     @respx.mock
     def test_rate_limited_and_network_error_classified(self):

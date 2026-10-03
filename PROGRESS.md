@@ -529,19 +529,48 @@ python -m runner.sample_scripts --topic "The Dyatlov Pass incident" --judge   # 
 
 ### Still rough / carry-forward
 
-- **No real LLM key exists in this environment** — `GEMINI_API_KEY` /
-  `GROQ_API_KEY` in `.env` are empty placeholders, so the two real sample
-  scripts and the live judge run could not be produced. Put any one script
-  key in `.env` (Gemini free tier is enough) and run the last two commands
-  above. The missing-key path itself was exercised for real: the CLI run
-  without keys produced exactly the per-provider, human-readable message
-  the integration test pins.
+- ~~No real LLM key exists in this environment~~ — **resolved 2026-10-03**:
+  Hamza added a Gemini key and the first live run surfaced two real-world
+  gaps, both fixed same day (see "Live-run fixes" below). Both sample
+  scripts now generated for real on `gemini-3.8-flash`; outputs in
+  `backend/core/output_v2/sample_scripts/`.
 - Model names are constants in `runner/llm_adapter.py`
-  (`SCRIPT_MODELS`) — revisit when providers deprecate them; not worth
-  config surface yet.
+  (`SCRIPT_MODELS`) — revisit when providers deprecate them; a retirement
+  now fails loudly as `model_unavailable`, so it can't rot silently.
 - The judge is deliberately rough (openings only, one call, two-line
   format). Phase 8 owns the real judge pass over full scripts and visual
   prompts.
 - `backend/core/script_agent.py` (legacy) is now fully superseded by
   `runner/llm_adapter.py` but stays untouched until Phases 4–6 replace the
   rest of `backend/core/` and it can all go at once.
+
+### Live-run fixes after the first real key (2026-10-03)
+
+The first run with a real Gemini key exposed two gaps the mocked matrix
+couldn't:
+
+- **`gemini-2.5-flash` is retired for new keys.** `generateContent` returns
+  HTTP 404 ("no longer available to new users … use gemini-3.8-flash") even
+  though ListModels still lists it. 404 wasn't in the adapter's status map,
+  so it surfaced as the useless "unexpected response". Fixes: model pinned
+  to `gemini-3.8-flash` (Google's own recommendation; the
+  `gemini-flash-latest` alias was tried first but its pool threw sustained
+  503s while the concrete model served fine), and 404 now classifies as a
+  new `model_unavailable` reason with wording that says the app's model
+  list needs updating.
+- **Transient 503s are the normal case on free-tier Gemini**, exactly as
+  the plan's non-negotiable predicted. Back-to-back calls drew 503
+  UNAVAILABLE ("high demand … temporary"), which (a) was mismapped to
+  "unexpected response" and (b) burned through to the next — unconfigured —
+  provider, failing the whole run. Fixes: 5xx now classifies as
+  `provider_unavailable` ("temporarily overloaded or down"), and
+  rate-limit/unavailable get **one in-place retry after 15s** before
+  falling through (`PROVIDER_RETRIES`/`RETRY_DELAY_SECONDS`). New tests pin
+  all of it: 404 → model_unavailable, 503×2 → provider_unavailable after
+  exactly one retry, 503-then-200 rescued with no recorded failure, 401
+  never retried.
+
+Suite after: **348 passed, 2 skipped** (was 344). Both sample scripts
+generated live (true crime: 9 scenes ~51s; what-if: 18 scenes ~58s — the
+pacing contrast falls straight out of `avg_clip_seconds` 6 vs 3), and the
+judge pass run on exactly those outputs.

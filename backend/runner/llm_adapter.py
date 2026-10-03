@@ -17,6 +17,7 @@ attempt is provider name + outcome, no credentials, no bodies.
 from __future__ import annotations
 
 import logging
+import time
 from enum import Enum
 from typing import Callable, Mapping, Sequence
 
@@ -60,7 +61,12 @@ DEFAULT_SCRIPT_PROVIDER_ORDER: tuple[Provider, ...] = (
 SCRIPT_MODELS: dict[Provider, str] = {
     Provider.anthropic: "claude-sonnet-4-5",
     Provider.openai: "gpt-4o",
-    Provider.gemini: "gemini-2.5-flash",
+    # Pinned, not the "-latest" alias: Google retired gemini-2.5-flash for
+    # new keys (2026-10) and its 404 recommended 3.8; the gemini-flash-latest
+    # alias was tried first but its pool threw sustained 503s while the
+    # concrete model served fine. A future retirement fails loudly as
+    # model_unavailable, so pinning no longer rots silently.
+    Provider.gemini: "gemini-3.8-flash",
     Provider.groq: "llama-3.3-70b-versatile",
 }
 
@@ -97,6 +103,8 @@ class FailureReason(str, Enum):
     rate_limited = "rate_limited"
     timeout = "timeout"
     network_error = "network_error"
+    model_unavailable = "model_unavailable"
+    provider_unavailable = "provider_unavailable"
     unexpected_response = "unexpected_response"
     empty_script = "empty_script"
 
@@ -109,9 +117,24 @@ FAILURE_WORDING: dict[FailureReason, str] = {
     FailureReason.no_permission: "the key does not have permission to use this model.",
     FailureReason.timeout: f"the provider did not answer within {TIMEOUT_SECONDS:.0f} seconds.",
     FailureReason.network_error: "the provider could not be reached.",
+    FailureReason.model_unavailable: (
+        "the provider no longer serves the model this app requests. "
+        "The app's model list needs an update — please report this."
+    ),
+    FailureReason.provider_unavailable: (
+        "the provider is temporarily overloaded or down. Try again in a few minutes."
+    ),
     FailureReason.unexpected_response: "the provider returned an unexpected response.",
     FailureReason.empty_script: "the model replied but produced no usable script scenes.",
 }
+
+
+# A transient condition (rate limit, overload) gets one in-place retry before
+# the adapter falls through to the next provider — otherwise a momentary 503
+# burns the user's only configured provider and fails the whole job.
+PROVIDER_RETRIES = 1
+RETRY_DELAY_SECONDS = 15.0
+RETRYABLE_REASONS = frozenset({FailureReason.rate_limited, FailureReason.provider_unavailable})
 
 
 class ProviderAttempt(BaseModel):
@@ -299,7 +322,14 @@ REASON_BY_HTTP_CODE = {
     401: FailureReason.invalid_key,
     402: FailureReason.no_credit,
     403: FailureReason.no_permission,
+    # 404 from a generate endpoint = the pinned model was retired/renamed
+    # (Google did this to gemini-2.5-flash while still listing it, 2026-10).
+    404: FailureReason.model_unavailable,
     429: FailureReason.rate_limited,
+    500: FailureReason.provider_unavailable,
+    502: FailureReason.provider_unavailable,
+    503: FailureReason.provider_unavailable,
+    504: FailureReason.provider_unavailable,
 }
 
 
@@ -456,10 +486,20 @@ def generate_script(
         if not api_key:
             record_failure(provider, FailureReason.missing_key)
             continue
-        try:
-            raw = complete_text(provider, api_key, system, user)
-        except _CallFailed as failure:
-            record_failure(provider, failure.reason)
+        raw = None
+        for try_no in range(1 + PROVIDER_RETRIES):
+            try:
+                raw = complete_text(provider, api_key, system, user)
+                break
+            except _CallFailed as failure:
+                if failure.reason in RETRYABLE_REASONS and try_no < PROVIDER_RETRIES:
+                    log.info("script provider=%s status=%s retrying in %ss",
+                             provider.value, failure.reason.value, RETRY_DELAY_SECONDS)
+                    time.sleep(RETRY_DELAY_SECONDS)
+                    continue
+                record_failure(provider, failure.reason)
+                break
+        if raw is None:
             continue
         scenes = parse_scenes(raw)
         if not scenes:
